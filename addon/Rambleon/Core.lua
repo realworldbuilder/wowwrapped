@@ -13,12 +13,10 @@ function ns.OnAddonLoaded(name)
   ns.Debug("loaded v" .. ns.VERSION .. " (flavor " .. ns.flavorHint .. ")")
 end
 
--- A first run: nothing remembered yet. Settings are not proof by themselves (the Forever client can forget
--- SavedVariables on a cold start), so chapters published from the Mac count as "has been here before" too.
+-- A first run: nothing remembered yet. The Forever client can forget SavedVariables on a cold start, and
+-- then this is true again: the welcome is one line and one popup, so that is the lesser harm.
 function ns.IsFirstRun()
-  if ns.GetSetting("welcomed") or ns.dbRestored then return false end
-  local chapters = _G.RambleonChapters
-  return not (type(chapters) == "table" and #chapters > 0)
+  return not (ns.GetSetting("welcomed") or ns.dbRestored)
 end
 
 -- The one line Rambleon says at login.

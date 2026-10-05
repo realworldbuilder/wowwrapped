@@ -5,7 +5,6 @@ from pathlib import Path
 from rambleon.archive import Archive
 from rambleon.events import EVENTS, describe, spec
 from rambleon.export import carried_over, quest_summary, render_markdown
-from rambleon.guide import stretches
 from rambleon.luaparse import parse, to_python
 from rambleon.model import COUNTER_KEYS, EVENT_TYPES
 from rambleon.nights import build_night
@@ -30,8 +29,7 @@ def test_both_sides_know_the_same_types():
     extra = set(re.findall(r'"(\w+)"', lua[lua.index("ns.EXTRA_COUNTERS"):lua.index("function ns.NewCounters")]))
     assert set(addon_counters.values()) | extra == set(COUNTER_KEYS)
     for source in ADDON.glob("*.lua"):
-        if source.name != "Chapters.lua":
-            assert set(re.findall(r'AddEvent\("([A-Z_]+)"', source.read_text())) <= set(EVENTS), source.name
+        assert set(re.findall(r'AddEvent\("([A-Z_]+)"', source.read_text())) <= set(EVENTS), source.name
 
 
 def test_everything_the_simulated_session_records_is_known_and_readable():
@@ -44,12 +42,11 @@ def test_everything_the_simulated_session_records_is_known_and_readable():
 def test_an_unknown_type_is_a_moment_not_a_crash(tmp_path):
     s = fixture_sessions()[0]
     s["events"].insert(3, {"t": s["events"][2]["t"], "type": "FLIGHT_TAKEN", "zone": "Teldrassil", "level": 10})
-    assert describe(s["events"][3]) == "Flight taken" and spec("FLIGHT_TAKEN").guide == "active"
+    assert describe(s["events"][3]) == "Flight taken" and spec("FLIGHT_TAKEN").stitch == "keep"
     night = build_night([s])
     assert any(ev["type"] == "FLIGHT_TAKEN" for ev in night["events"])
     assert "Flight taken" in render_markdown(night)
     assert "Flight taken" in export_html(night, Archive(tmp_path / "a"), tmp_path / "exports").read_text()
-    assert stretches([night])
 
 
 def test_an_abandoned_quest_is_no_longer_open_or_carried():

@@ -17,22 +17,20 @@ from rich.table import Table
 from . import __version__
 from .archive import Archive
 from .doctor import apply_fixes, run_doctor
-from .archive import atomic_write_bytes
-from .export import carried_over, duration, export_filename, export_session, night_stats, render_catchup, render_markdown
+from .export import duration, export_session, night_stats, render_markdown
 from .install import install_addon
 from .luaparse import LuaParseError
 from .paths import resolve_paths
 from . import service as svc
-from .nights import earlier_nights, nights as list_nights, resolve_night
+from .nights import nights as list_nights, resolve_night
 from .notify import notify
 from .publish import write_html_index
-from .config import X_STYLES, effective, journal_voice, load_config, x_config
-from .guide import available_modes, default_mode, write_guide
+from .config import effective, load_config, writer_voice
 from .share import ShareError, share as run_share
-from . import pipeline, prompts, xpost
+from . import pipeline, prompts
 from .watch import Finalizer
 from .wowstate import logged_out_since
-from .summarize import DEFAULT_MODEL, DEFAULT_VOICE
+from .writer import DEFAULT_MODEL, DEFAULT_VOICE
 from .watch import ingest_once, reprocess as run_reprocess, watch as run_watch
 
 app = typer.Typer(help="Rambleon — your Azeroth adventure journal, Mac side.", no_args_is_help=True, add_completion=False,
@@ -93,15 +91,6 @@ def _night(ref: str) -> dict:
     return night
 
 
-def _x_config(paths) -> dict:
-    """[x] from rambleon.local.toml. A file that cannot be read is said out loud: posting on defaults would surprise."""
-    cfg = load_config(paths.repo_root)
-    if cfg.error:
-        console.print(f"[red]{cfg.error}[/red]", highlight=False)
-        raise typer.Exit(1)
-    return x_config(paths.repo_root)
-
-
 @command(app)
 def version() -> None:
     """Print the companion version."""
@@ -133,7 +122,7 @@ def doctor(fix: bool = typer.Option(False, "--fix", help="Repair what can be rep
 
 
 @command(app)
-def setup(no_ai: bool = typer.Option(False, "--no-ai", help="Do not use the Claude CLI for chapters.")) -> None:
+def setup(no_ai: bool = typer.Option(False, "--no-ai", help="Do not use the Claude CLI.")) -> None:
     """One command for a new Mac: link the AddOn, start the background watcher, build the journal index, open it."""
     paths = resolve_paths()
     archive = Archive(paths.archive_dir)
@@ -158,10 +147,10 @@ def setup(no_ai: bool = typer.Option(False, "--no-ai", help="Do not use the Clau
     _print_checks(checks)
     console.print()
     console.print("Next: start WoW (or log out to the character screen and back in so it sees the AddOn), then play. "
-                  "Type /ramble in game. When you log out for the night, your chapter is written by itself.")
+                  "Type /ramble in game. When you log out for the night, your pages are written by themselves.")
     if any(c.label == "Claude CLI" and c.status != "FOUND" for c in checks):
-        console.print("For AI-written chapters, install Claude Code and log in: run `claude`, then `/login`. "
-                      "Without it you still get the timeline, the story page, and a prompt you can paste into any assistant.")
+        console.print("For AI narration, install Claude Code and log in: run `claude`, then `/login`. "
+                      "Without it you still get every page, built from the facts.")
     if sys.platform == "darwin":
         subprocess.run(["open", str(index)], check=False)
 
@@ -218,12 +207,12 @@ def _steps(ref: str | None, only: set[str], **options) -> pipeline.NightContext:
 @command(app)
 def watch(interval: float = typer.Option(1.0, help="Seconds between polls."),
           copy_screenshots: bool = typer.Option(True, "--copy-screenshots/--no-copy-screenshots", help="Copy matching screenshots into the archive."),
-          no_ai: bool = typer.Option(False, "--no-ai", help="Do not call the Claude CLI when a chapter ends."),
-          no_auto: bool = typer.Option(False, "--no-auto", help="Only archive; skip export/journal/publish."),
-          model: str = typer.Option(None, "--model", help=f"Claude model for the chapter (default: [journal] model, else {DEFAULT_MODEL})."),
-          voice: str = typer.Option(None, "--voice", help="Journal voice profile (see `ramble voices`; default: [journal] voice).")) -> None:
+          no_ai: bool = typer.Option(False, "--no-ai", help="Do not call the Claude CLI when a night ends."),
+          no_auto: bool = typer.Option(False, "--no-auto", help="Only archive; skip the pages."),
+          model: str = typer.Option(None, "--model", help=f"Claude model (default: [wrapped] model, else {DEFAULT_MODEL})."),
+          voice: str = typer.Option(None, "--voice", help="Voice profile (see `ramble voices`; default: [wrapped] voice).")) -> None:
     """Watch SavedVariables and archive every session WoW writes. Leave this running while you play.
-    When a chapter ends it also exports it, writes the journal, builds the story page and publishes it to the game."""
+    When a night ends it also writes the log, the story page and the index."""
     archive, paths = _archive()
     if paths.wow_dir is None:
         console.print("[red]WoW directory not found[/red] (set RAMBLEON_WOW_DIR)")
@@ -235,9 +224,6 @@ def watch(interval: float = typer.Option(1.0, help="Seconds between polls."),
             finalizer.recover(pipeline.unfinished(archive, paths.exports_dir))
         except Exception as e:  # noqa: BLE001 — never a reason not to watch
             log(f"could not look for unfinished nights: {type(e).__name__}: {e}")
-    # `[x] auto = true` in rambleon.local.toml: a finished chapter is told on X once the night has gone quiet.
-    poster = None if no_auto else xpost.AutoPoster(archive, paths, log, notify=notify,
-                                                   in_world=lambda since: not logged_out_since(paths.wow_dir, since))
 
     seen_config: list = [None]
 
@@ -253,8 +239,8 @@ def watch(interval: float = typer.Option(1.0, help="Seconds between polls."),
         seen_config[0] = stamp
         cfg = load_config(paths.repo_root)
         if cfg.error:
-            log(f"{cfg.error} — auto-share and auto-post are off until it is fixed")
-            notify("Rambleon", "rambleon.local.toml cannot be read; auto-share and auto-post are off until it is fixed.")
+            log(f"{cfg.error} — auto-share is off until it is fixed")
+            notify("Rambleon", "rambleon.local.toml cannot be read; auto-share is off until it is fixed.")
         for w in cfg.warnings:
             log(f"rambleon.local.toml: {w}")
     check_config()
@@ -262,7 +248,6 @@ def watch(interval: float = typer.Option(1.0, help="Seconds between polls."),
     def tick() -> None:
         check_config()
         finalizer.tick()
-        poster.tick()
     try:
         run_watch(paths, archive, log, interval=interval, copy_screenshots=copy_screenshots,
                   after_capture=finalizer.on_capture if finalizer else None, tick=tick if finalizer else None)
@@ -271,20 +256,13 @@ def watch(interval: float = typer.Option(1.0, help="Seconds between polls."),
 
 
 @command(app)
-def publish() -> None:
-    """Write the latest chapters into the AddOn (Chapters.lua) so /ramble chapters can show them in game."""
-    ctx = _steps(None, {"game", "index"})
-    console.print(f"{ctx.outputs['game']}. In WoW: /reload, then /ramble chapters. Web index: {ctx.outputs['index']}", soft_wrap=True)
-
-
-@command(app)
 def finish(ref: str = typer.Argument("latest", help="tonight | latest | YYYY-MM-DD | night id"),
-           no_ai: bool = typer.Option(False, "--no-ai", help="Only the prompts; do not call the Claude CLI."),
-           model: str = typer.Option(None, "--model", help=f"Claude model (default: [journal] model, else {DEFAULT_MODEL})."),
-           voice: str = typer.Option(None, "--voice", help="Journal voice profile (see `ramble voices`)."),
+           no_ai: bool = typer.Option(False, "--no-ai", help="Do not call the Claude CLI."),
+           model: str = typer.Option(None, "--model", help=f"Claude model (default: [wrapped] model, else {DEFAULT_MODEL})."),
+           voice: str = typer.Option(None, "--voice", help="Voice profile (see `ramble voices`)."),
            share_it: bool = typer.Option(False, "--share", help="Also put the page on your GitHub Pages site (asks first).")) -> None:
-    """Do for a night everything the watcher does when you log out: log, chapter, route guide, story page,
-    index, chapters in game. For a night the watcher missed, or to write one again."""
+    """Do for a night everything the watcher does when you log out: log, story page, index.
+    For a night the watcher missed, or to write one again."""
     archive, paths = _archive()
     try:
         ctx = pipeline.finish_night(archive, paths, ref, log=log, use_ai=not no_ai, model=model, voice=voice,
@@ -349,8 +327,8 @@ def config() -> None:
 
 @command(app)
 def voices() -> None:
-    """List journal voice profiles: the bundled ones and your own. Default: golden, or `[journal] voice`."""
-    default = journal_voice() or DEFAULT_VOICE
+    """List voice profiles: the bundled ones and your own. Default: golden, or `[wrapped] voice`."""
+    default = writer_voice() or DEFAULT_VOICE
     for name, path in sorted(prompts.available("voices").items()):
         marker = " (default)" if name == default else ""
         console.print(f"{name}{marker}  [dim]{'yours' if prompts.is_yours(path) else 'bundled'}[/dim]", highlight=False)
@@ -380,7 +358,7 @@ def nights() -> None:
 
 @command(app)
 def page(ref: str = typer.Argument("latest"), open_it: bool = typer.Option(True, "--open/--no-open")) -> None:
-    """Build the HTML story page for a night (journal, recap, screenshots, timeline) and open it in the browser."""
+    """Build the HTML story page for a night (recap, screenshots, timeline) and open it in the browser."""
     out = _steps(ref, {"screenshots", "page"}).outputs["page"]
     if open_it and sys.platform == "darwin":
         subprocess.run(["open", str(out)], check=False)
@@ -406,104 +384,6 @@ def share(refs: list[str] = typer.Argument(None, help="tonight | latest | YYYY-M
     console.print(result.message)
     for url in result.urls:
         console.print(url)
-
-
-@command(app)
-def post(ref: str = typer.Argument("tonight", help="tonight | latest | YYYY-MM-DD | night id"),
-         style: str = typer.Option(None, "--style", help="post (one post, the night in miniature) or thread (the whole chapter)."),
-         link: bool = typer.Option(None, "--link/--no-link", help="Add the shared story page's address. X charges far more for a post with a link."),
-         picture: bool = typer.Option(None, "--picture/--no-picture", help="Attach the night's hero screenshot."),
-         lowercase: bool = typer.Option(None, "--lowercase/--no-lowercase", help="All lower case, the way you write on X."),
-         yes: bool = typer.Option(False, "--yes", "-y", help="Do not ask before posting."),
-         dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be posted; post nothing."),
-         force: bool = typer.Option(False, "--force", help="Post a night that was already posted.")) -> None:
-    """Tell a night on X: the chapter in miniature with its hero picture, or the whole chapter as a thread.
-    Defaults come from [x] in rambleon.local.toml. Needs your X developer keys once: `ramble x login`."""
-    archive, paths = _archive()
-    cfg = _x_config(paths)
-    style = style or cfg["style"]
-    if style not in X_STYLES:
-        console.print(f"[red]unknown style {style!r}[/red]; choose from: {', '.join(X_STYLES)}")
-        raise typer.Exit(1)
-    night = _night(ref)
-
-    def confirm(question: str) -> bool:
-        return typer.confirm(question, default=False)
-    link = cfg["link"] if link is None else link
-    picture = cfg["picture"] if picture is None else picture
-    lowercase = cfg["lowercase"] if lowercase is None else lowercase
-    preview = xpost.post_night(archive, paths, night, style=style, link=link, picture=picture, lowercase=lowercase,
-                               dry_run=True, force=force, log=log)
-    for n, text in enumerate(preview.texts, 1):
-        console.print(f"[dim]— {n}/{len(preview.texts)} · {xpost.weighted_len(text)} of {xpost.LIMIT} —[/dim]")
-        console.print(text, markup=False, highlight=False, soft_wrap=True)
-    console.print(f"[dim]picture: {preview.image or 'none'}[/dim]", soft_wrap=True)
-    if dry_run or not preview.would_post:
-        console.print(preview.message)
-        return
-    result = xpost.post_night(archive, paths, night, style=style, link=link and preview.has_link,
-                              picture=picture, lowercase=lowercase, force=force, yes=yes, confirm=confirm, log=log)
-    console.print(result.message)
-
-
-x_app = typer.Typer(help="Your X account: the keys `ramble post` and the watcher's auto-post use.", pretty_exceptions_enable=False)
-app.add_typer(x_app, name="x")
-
-
-@command(x_app, "login")
-def x_login(check: bool = typer.Option(True, "--check/--no-check", help="Ask X who the keys belong to (one small paid request).")) -> None:
-    """Store the four keys of your X developer app in the macOS Keychain."""
-    console.print("At console.x.com: create an app, set its user authentication to [bold]Read and write[/bold], then generate\n"
-                  "the API Key and Secret and the Access Token and Secret (in that order: a token made before the permission\n"
-                  "change stays read-only), and add a few dollars of credits. Paste the four values here; they go into your\n"
-                  "Keychain and nowhere else.")
-    creds = {
-        "api_key": typer.prompt("API Key", hide_input=True),
-        "api_secret": typer.prompt("API Key Secret", hide_input=True),
-        "access_token": typer.prompt("Access Token", hide_input=True),
-        "access_secret": typer.prompt("Access Token Secret", hide_input=True),
-    }
-    try:
-        xpost.store_credentials(creds)
-        console.print("stored in the Keychain.")
-        if check:
-            console.print(f"X knows these keys as [bold]@{xpost.XClient(creds).me()}[/bold].")
-    except xpost.XError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
-    archive, paths = _archive()
-    cfg = _x_config(paths)
-    if cfg["auto"]:
-        due = [f"{n['character'].get('displayName')} ({n['nightDate']})" for n in xpost.due_nights(archive, paths.exports_dir, cfg)]
-        console.print("Auto-post is on. " + (f"The watcher posts these within a minute or two: {', '.join(due)}." if due else
-                      "Nothing is waiting; the next finished chapter is posted once the night has gone quiet."), markup=False)
-    else:
-        console.print("Try `ramble post tonight --dry-run`, then `ramble post tonight`. For posting by itself, put\n"
-                      "[x] auto = true in rambleon.local.toml.", markup=False)
-
-
-@command(x_app, "logout")
-def x_logout() -> None:
-    """Remove the X keys from the Keychain."""
-    console.print(f"removed {xpost.delete_credentials()} key(s) from the Keychain.")
-
-
-@command(x_app, "status")
-def x_status() -> None:
-    """Are the keys here, is auto-post on, and what was posted last?"""
-    archive, paths = _archive()
-    cfg = _x_config(paths)
-    console.print(f"keys: {'found' if xpost.load_credentials() else 'none (run `ramble x login`)'}")
-    console.print(f"auto-post: {'on' if cfg['auto'] else 'off ([x] auto = true in rambleon.local.toml turns it on)'}", markup=False)
-    console.print(f"style: {cfg['style']} · link: {'yes' if cfg['link'] else 'no'} · picture: {'yes' if cfg['picture'] else 'no'} · lower case: {'yes' if cfg['lowercase'] else 'no'} · "
-                  f"quiet before posting: {cfg['delay']:g} min · characters: {', '.join(cfg['characters']) or 'all'}", soft_wrap=True)
-    ledger = xpost.load_ledger(archive)
-    for night_id, entry in sorted(ledger.items(), key=lambda kv: kv[1].get("postedAt") or 0)[-5:]:
-        ids = entry.get("ids") or []
-        when = datetime.fromtimestamp(entry.get("postedAt") or 0)
-        console.print(f"{when:%Y-%m-%d %H:%M}  {night_id}  https://x.com/i/status/{ids[0] if ids else '?'}", highlight=False)
-    if not ledger:
-        console.print("nothing posted yet.")
 
 
 @command(app)
@@ -589,31 +469,6 @@ def export(ref: str = typer.Argument("latest"), all_nights: bool = typer.Option(
         console.print(f"exported {out}")
 
 
-def _copy_to_clipboard(text: str) -> bool:
-    if sys.platform != "darwin":
-        return False
-    try:
-        env = {**os.environ, "LANG": "en_US.UTF-8"}  # pbcopy reads its input in the locale's encoding
-        return subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=False, env=env).returncode == 0
-    except OSError:
-        return False
-
-
-@command(app)
-def catchup(ref: str = typer.Argument("latest", help="tonight | latest | YYYY-MM-DD | night id"),
-            copy: bool = typer.Option(False, "--copy/--no-copy", help="Also put the text on the clipboard (macOS).")) -> None:
-    """A plain-text list of the quests turned in one night, grouped by zone, to paste to a friend who wants to catch up."""
-    archive, paths = _archive()
-    night = _night(ref)
-    text = render_catchup(night, carried_over(earlier_nights(archive, night), night))
-    out = paths.exports_dir / "social" / export_filename(night, "-catchup").replace(".md", ".txt")
-    atomic_write_bytes(out, text.encode("utf-8"))
-    console.print(text, markup=False, highlight=False, soft_wrap=True)
-    console.print(f"[dim]saved {out}[/dim]", soft_wrap=True)
-    if copy:
-        console.print("copied to the clipboard." if _copy_to_clipboard(text) else "[yellow]could not copy (pbcopy unavailable).[/yellow]")
-
-
 def _slug(archive: Archive, ref: str) -> str:
     """A character slug from `latest` (the character who played last) or a slug seen in the archive."""
     if ref in ("latest", "tonight", "last", ""):
@@ -627,48 +482,6 @@ def _slug(archive: Archive, ref: str) -> str:
         return ref
     console.print(f"[red]no character matches {ref!r}[/red] — known: {', '.join(known) or 'none yet'}")
     raise typer.Exit(1)
-
-
-@command(app)
-def guide(ref: str = typer.Argument("latest", help="character slug | latest"),
-          no_ai: bool = typer.Option(False, "--no-ai", help="Only the factual guide and the prompt; do not call the Claude CLI."),
-          model: str = typer.Option(None, "--model", help=f"Claude model (default: [journal] model, else {DEFAULT_MODEL})."),
-          voice: str = typer.Option(None, "--voice", help="Tone profile (see `ramble voices`)."),
-          mode: str = typer.Option(None, "--mode", help="What to write from the facts: a bundled mode (--list) or a path to your own .md prompt."),
-          list_modes: bool = typer.Option(False, "--list", help="List the bundled guide modes and exit."),
-          open_it: bool = typer.Option(False, "--open", help="Open the guide page in the browser.")) -> None:
-    """The route guide of a character: how they actually leveled, one zone stretch per chapter, across every night."""
-    if list_modes:
-        for m in available_modes():
-            console.print(f"{m}{'  (default)' if m == default_mode() else ''}")
-        console.print("Or --mode /path/to/your-prompt.md; placeholders: {voice} {name} {pronouns} {startLevel} {endLevel} {nights}.",
-                      markup=False, highlight=False)
-        return
-    archive, paths = _archive()
-    slug = _slug(archive, ref)
-    try:
-        result = write_guide(archive, paths.exports_dir, slug, use_ai=not no_ai, model=model, voice=voice, mode=mode, log=log)
-    except ValueError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
-    for k, v in result.items():
-        if v:
-            console.print(f"{k}: {v}")
-    write_html_index(archive, paths.exports_dir)
-    if open_it and sys.platform == "darwin":
-        subprocess.run(["open", str(result["html"])], check=False)
-
-
-@command(app)
-def summarize(ref: str = typer.Argument("latest"),
-              no_ai: bool = typer.Option(False, "--no-ai", help="Only write the prompt; do not call the Claude CLI."),
-              model: str = typer.Option(None, "--model", help=f"Claude model (default: [journal] model, else {DEFAULT_MODEL})."),
-              voice: str = typer.Option(None, "--voice", help="Journal voice profile (see `ramble voices`).")) -> None:
-    """Write the journal prompt for a night and, if the Claude CLI is available, the AI-written chapter."""
-    ctx = _steps(ref, {"journal", "page", "game"}, use_ai=not no_ai, model=model, voice=voice)
-    for k, v in ctx.outputs["journal"].items():
-        if v:
-            console.print(f"{k}: {v}", soft_wrap=True)
 
 
 def main() -> None:

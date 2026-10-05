@@ -143,13 +143,6 @@ assert(RambleonPanel:IsShown(), "panel back after the picture")
 assertEq(lastOfType("SCREENSHOT").reason, "MARK", "panel mark still photographed")
 ns.UI.Refresh()
 ns.HandleSlash("debug")
-ns.HandleSlash("chapters")                       -- builds the chapters frame with no data
-assert(RambleonChaptersFrame:IsShown(), "chapters frame shown")
-_G.RambleonChapters = { { id = "x", slug = "rambleon-birdsong", date = "Today", duration = "1m", title = "Chapter 1 — Test",
-  recap = "1m in Azeroth.", journal = "It was fine.", log = "# log", number = 1, startedAt = 1 } }
-ns.UI.ShowChapter(1)
-assert(RambleonChaptersText:GetText():find("It was fine"), "chapter text shown")
-ns.HandleSlash("chapters")
 assertEq(ns.session.counters.notes, 1, "notes")
 assertEq(ns.session.counters.marks, 3, "marks")
 
@@ -486,23 +479,5 @@ assertEq(countOfType("INSTANCE_ENTER"), enters, "resuming inside does not enter 
 WoW.state.inInstance = false; WoW.state.instanceType = "none"
 WoW.Fire("PLAYER_ENTERING_WORLD", false, false); WoW.Advance(2)
 assertEq(lastOfType("INSTANCE_EXIT").name, "The Deadmines", "left through a loading screen")
-
--- The chapters reader: stays out of the pictures, keeps the published date as written, clamps its pages
-_G.RambleonChapters = {
-  { id = "a", slug = "rambleon-birdsong", date = "Oct 2", title = "Chapter 1", journal = "First.", startedAt = 1 },
-  { id = "b", slug = "rambleon-birdsong", date = "Oct 3", title = "Chapter 2", journal = "Second.", startedAt = 2 },
-}
-_G.RambleonChaptersMeta = { published = "October 3, 9:14 PM" }
-ns.UI.ShowChapter(99)
-assertEq(ns.UI.chapterIndex, 2, "NEWER stops at the last chapter")
-assert(RambleonChaptersFrame.subtitle:GetText():find("published October 3, 9:14 PM", 1, true), "published date keeps its capitals")
-ns.UI.ShowChapter(-3)
-assertEq(ns.UI.chapterIndex, 1, "OLDER stops at the first chapter")
-assert(RambleonChaptersText:GetText():find("First.", 1, true), "first chapter shown")
-WoW.Advance(5)
-ns.HandleSlash("mark")
-assert(not RambleonChaptersFrame:IsShown(), "chapters reader hidden for the picture")
-WoW.Advance(1)
-assert(RambleonChaptersFrame:IsShown(), "chapters reader back after the picture")
 
 print("OK — " .. summary)

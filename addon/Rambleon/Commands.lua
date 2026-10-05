@@ -35,8 +35,6 @@ ns.COMMANDS = {
       ns.Print("automatic screenshots are " .. (ns.AutoShotsEnabled() and "on" or "off")
                .. " (level ups, /ramble mark, new zones; /ramble shots on|off)")
     end },
-  { name = "chapters", aliases = { "read" }, help = "read past chapters (published from your Mac)",
-    fn = function() ns.UI.ToggleChapters() end },
   { name = "save", aliases = { "end" }, help = "write the log to disk now (asks before reloading; logging out does it anyway)",
     fn = function() ns.UI.PromptEndChapter() end },
   { name = "debug", args = "[on|off]", help = "addon and client diagnostics; on|off for debug chatter",

@@ -24,7 +24,7 @@ local INK = { 0.24, 0.16, 0.08 }         -- dark brown text
 local INK_SOFT = { 0.42, 0.30, 0.16 }
 local GOLD = { 0.62, 0.42, 0.12 }
 
-local panel, chaptersFrame
+local panel
 
 local function setFont(fs, path, size, flags)
   local ok = pcall(fs.SetFont, fs, path, size, flags or "")
@@ -142,18 +142,15 @@ local function build()
   panel.banner:SetJustifyH("CENTER")
   panel.banner:SetWidth(WIDTH - 60)
 
-  panel.footer = label(panel, "Your log saves itself when you log out. Chapters appear next login.", 10, INK_SOFT)
+  panel.footer = label(panel, "Your log saves itself when you log out.", 10, INK_SOFT)
   panel.footer:SetPoint("BOTTOM", 0, 50); panel.footer:SetJustifyH("CENTER"); panel.footer:SetWidth(WIDTH - 50)
 
-  local mark = button(panel, "MARK MOMENT", 112)
+  local mark = button(panel, "MARK MOMENT", 167)
   mark:SetPoint("BOTTOMLEFT", 20, 18)
   mark:SetScript("OnClick", function() ns.MarkMoment() end)
-  local note = button(panel, "ADD NOTE", 100)
+  local note = button(panel, "ADD NOTE", 167)
   note:SetPoint("LEFT", mark, "RIGHT", 6, 0)
   note:SetScript("OnClick", UI.PromptNote)
-  local read = button(panel, "READ CHAPTERS", 112)
-  read:SetPoint("LEFT", note, "RIGHT", 6, 0)
-  read:SetScript("OnClick", function() UI.ToggleChapters() end)
 
   local acc = 0
   panel:SetScript("OnUpdate", function(self, elapsed)
@@ -221,9 +218,7 @@ end
 -- Our own frames stay out of the pictures. Returns a function that shows them again.
 function UI.HideForScreenshot()
   local hidden = {}
-  for _, f in ipairs({ panel, chaptersFrame }) do
-    if f and f:IsShown() then f:Hide(); table.insert(hidden, f) end
-  end
+  if panel and panel:IsShown() then panel:Hide(); table.insert(hidden, panel) end
   return function() for _, f in ipairs(hidden) do f:Show() end end
 end
 
@@ -240,124 +235,6 @@ function UI.MomentRemembered()
   if PlaySound and SOUNDKIT and SOUNDKIT.IG_QUEST_LOG_OPEN then
     pcall(PlaySound, SOUNDKIT.IG_QUEST_LOG_OPEN)
   end
-end
-
--- Chapters: journal text published by the Mac companion into Chapters.lua ----------------------
-
-local CH_WIDTH, CH_HEIGHT = 560, 600
-
-local function myChapters()
-  local all = _G.RambleonChapters
-  if type(all) ~= "table" then return {} end
-  -- Identity is the GUID: the Forever client has changed how it spells the player's name between builds.
-  -- The slug stays as a fallback for chapters published before the GUID was included.
-  local me = ns.Slug(ns.DisplayName())
-  local guid = (ns.session and ns.session.character and ns.session.character.guid)
-    or ns.CleanString(ns.SafeCall(UnitGUID, "player"))
-  local out = {}
-  for _, c in ipairs(all) do
-    if type(c) == "table" then
-      local mine
-      if guid and c.guid and c.guid ~= "" then mine = (c.guid == guid)
-      else mine = (c.slug == me or c.slug == nil) end
-      if mine then table.insert(out, c) end
-    end
-  end
-  table.sort(out, function(a, b) return (a.startedAt or 0) < (b.startedAt or 0) end)
-  return out
-end
-
-local function buildChapters()
-  local template = BackdropTemplateMixin and "BackdropTemplate" or nil
-  local f = CreateFrame("Frame", "RambleonChaptersFrame", UIParent, template)
-  chaptersFrame = f
-  f:SetSize(CH_WIDTH, CH_HEIGHT)
-  f:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
-  f:SetFrameStrata("HIGH")
-  f:SetMovable(true); f:EnableMouse(true); f:SetClampedToScreen(true)
-  f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", f.StartMoving)
-  f:SetScript("OnDragStop", f.StopMovingOrSizing)
-  if f.SetBackdrop then
-    f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-                    tile = false, edgeSize = 32, insets = { left = 10, right = 10, top = 10, bottom = 10 } })
-    f:SetBackdropColor(0.90, 0.82, 0.64, 0.98)
-    f:SetBackdropBorderColor(0.75, 0.60, 0.35, 1)
-  end
-  tinsert(UISpecialFrames, "RambleonChaptersFrame")
-  local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-  close:SetPoint("TOPRIGHT", -4, -4)
-
-  f.title = label(f, "CHAPTERS", 20, GOLD, TITLE_FONT)
-  f.title:SetPoint("TOP", 0, -20); f.title:SetJustifyH("CENTER")
-  f.subtitle = label(f, "", 11, INK_SOFT)
-  f.subtitle:SetPoint("TOP", f.title, "BOTTOM", 0, -2); f.subtitle:SetJustifyH("CENTER")
-
-  local scroll = CreateFrame("ScrollFrame", "RambleonChaptersScroll", f, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", 24, -70)
-  scroll:SetPoint("BOTTOMRIGHT", -44, 60)
-  local edit = CreateFrame("EditBox", "RambleonChaptersText", scroll)
-  edit:SetMultiLine(true)
-  edit:SetAutoFocus(false)
-  edit:SetWidth(CH_WIDTH - 80)
-  setFont(edit, BODY_FONT, 12)
-  edit:SetTextColor(INK[1], INK[2], INK[3])
-  edit:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-  edit:SetScript("OnTextChanged", function(self, userInput)
-    if userInput then self:SetText(UI.chapterContent or "") end   -- read-only, still selectable
-  end)
-  scroll:SetScrollChild(edit)
-  f.edit = edit
-
-  f.hint = label(f, "Click the text, then Ctrl-A and Ctrl-C to copy it.", 10, INK_SOFT)
-  f.hint:SetPoint("BOTTOM", 0, 44); f.hint:SetJustifyH("CENTER")
-
-  local prev = button(f, "< OLDER", 90)
-  prev:SetPoint("BOTTOMLEFT", 20, 16)
-  prev:SetScript("OnClick", function() UI.ShowChapter((UI.chapterIndex or 1) - 1) end)
-  local nxt = button(f, "NEWER >", 90)
-  nxt:SetPoint("BOTTOMRIGHT", -20, 16)
-  nxt:SetScript("OnClick", function() UI.ShowChapter((UI.chapterIndex or 1) + 1) end)
-  local mode = button(f, "STORY / LOG", 110)
-  mode:SetPoint("BOTTOM", 0, 16)
-  mode:SetScript("OnClick", function() UI.chapterShowLog = not UI.chapterShowLog; UI.ShowChapter(UI.chapterIndex or 1) end)
-  f:Hide()
-  return f
-end
-
-function UI.ShowChapter(index)
-  local f = chaptersFrame or buildChapters()
-  local chapters = myChapters()
-  local text
-  local meta = _G.RambleonChaptersMeta
-  local when = type(meta) == "table" and type(meta.published) == "string" and meta.published or nil
-  if #chapters == 0 then
-    f.subtitle:SetText(when and ("Published " .. when) or "Nothing published yet")
-    text = "No chapters yet.\n\nPlay, then log out. With `ramble watch` running on your Mac, tonight's chapter is written about ten minutes after you leave and shows up here next login.\n\nIn a hurry: /ramble save now, then `ramble summarize tonight` on the Mac, then /reload."
-  else
-    if index < 1 then index = 1 end
-    if index > #chapters then index = #chapters end
-    UI.chapterIndex = index
-    local c = chapters[index]
-    f.subtitle:SetText(string.format("%s  ·  %s  ·  %d of %d  ·  %s", c.date or "", c.duration or "", index, #chapters,
-                                  when and ("published " .. when) or "nothing published yet"))
-    if UI.chapterShowLog or not c.journal or c.journal == "" then
-      text = (c.title or "") .. "\n\n" .. (c.recap or "") .. "\n\n" .. (c.log or "")
-    else
-      text = (c.journal or "") .. "\n\n" .. (c.recap or "")
-    end
-  end
-  UI.chapterContent = text
-  f.edit:SetText(text)
-  f.edit:SetCursorPosition(0)
-  f:Show()
-end
-
-function UI.ToggleChapters()
-  local f = chaptersFrame or buildChapters()
-  if f:IsShown() then f:Hide() return end
-  local chapters = myChapters()
-  UI.ShowChapter(UI.chapterIndex or #chapters)
 end
 
 -- Popups -----------------------------------------------------------------------
@@ -385,8 +262,7 @@ StaticPopupDialogs["RAMBLEON_NOTE"] = {
 
 StaticPopupDialogs["RAMBLEON_WELCOME"] = {
   text = "Rambleon quietly remembers your adventure: where you went, what you did, who you met.\n\n"
-    .. "There is nothing to press. Play, then log out; the companion on your Mac writes tonight's chapter, "
-    .. "and it is here to read next login (/ramble chapters).\n\n"
+    .. "There is nothing to press. Play, then log out; the companion on your Mac keeps the record.\n\n"
     .. "MARK MOMENT keeps a moment, with a picture. ADD NOTE keeps your own words, which matter most.",
   button1 = "BEGIN",
   timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,

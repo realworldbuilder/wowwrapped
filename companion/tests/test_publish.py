@@ -4,16 +4,11 @@ from pathlib import Path
 from rambleon.archive import Archive
 from rambleon.luaparse import parse, to_python
 from rambleon.normalize import sessions_from_db
-from rambleon.publish import build_chapters, export_html, lua_string, write_chapters_lua
-from rambleon.summarize import build_prompt
-from rambleon.export import carried_over, quest_summary, render_catchup, render_recap
+from rambleon.nights import chapter_numbers, nights
+from rambleon.publish import export_html
+from rambleon.export import carried_over, quest_summary, render_recap
 
 FIXTURES = Path(__file__).parent / "fixtures"
-
-
-def test_lua_string_escaping():
-    s = lua_string('he said "hi"\nnew|line\\')
-    assert s == '"he said \\"hi\\"\\nnew||line\\\\"'
 
 
 def test_publish_roundtrip(tmp_path):
@@ -22,17 +17,9 @@ def test_publish_roundtrip(tmp_path):
     s = sessions_from_db(db)[0]
     archive.upsert_session(s, {"capturedAt": int(time.time()), "rawSnapshot": "x", "sourceHash": "h"})
     archive.rebuild_index()
-    chapters = build_chapters(archive, tmp_path / "exports")
-    assert len(chapters) == 1 and chapters[0]["number"] == 1
-    assert "Ramble on." in chapters[0]["recap"]
-    addon = tmp_path / "addon"; addon.mkdir()
-    path = write_chapters_lua(chapters, addon)
-    parsed = to_python(parse(path.read_bytes()))["RambleonChapters"]
-    assert parsed[0]["id"].startswith("night-") and "Moonhoof" in parsed[0]["log"]
-    assert parsed[0]["guid"] == s["character"]["guid"] and parsed[0]["slug"] == "rambleon-birdsong"
     page = export_html(s, archive, tmp_path / "exports")
     text = page.read_text()
-    assert "<h1>Chapter 1" in text and "Travelled with Moonhoof" in text
+    assert "<h1>Chapter 1" in text and "Travelled with Moonhoof" in text and "Ramble on." in text
 
 
 def test_two_nights_of_one_character_are_numbered_in_order(tmp_path):
@@ -55,33 +42,11 @@ def test_two_nights_of_one_character_are_numbered_in_order(tmp_path):
     cap = {"capturedAt": int(time.time()), "rawSnapshot": "x", "sourceHash": "h"}
     archive.upsert_session(first, cap); archive.upsert_session(second, cap)
     archive.rebuild_index()
-    chapters = build_chapters(archive, tmp_path / "exports")
-    assert [c["number"] for c in chapters] == [1, 2]
-    assert {c["slug"] for c in chapters} == {"rambleon-birdsong"}
-    assert {c["guid"] for c in chapters} == {first["character"]["guid"]}
-    assert chapters[0]["id"] != chapters[1]["id"] and all(c["id"].endswith("-rambleon-birdsong") for c in chapters)
-
-
-def test_chapter_cap_is_per_character(tmp_path):
-    """A second character's nights must never push the first one's chapters out of /ramble chapters."""
-    from rambleon.publish import MAX_CHAPTERS_IN_GAME
-    from test_memory import _shifted
-    archive = Archive(tmp_path / "archive")
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
-    raw = db["sessions"][0]
-    raws = [_shifted(raw, d) for d in range(MAX_CHAPTERS_IN_GAME + 2)] + [_shifted(raw, d, "Other") for d in (5, 6)]
-    cap = {"capturedAt": int(time.time()), "rawSnapshot": "x", "sourceHash": "h"}
-    for s in sessions_from_db({"sessions": raws}):
-        archive.upsert_session(s, cap)
-    archive.rebuild_index()
-    chapters = build_chapters(archive, tmp_path / "exports")
-    mine = [c["number"] for c in chapters if c["slug"] == "rambleon-birdsong"]
-    other = [c["number"] for c in chapters if c["slug"] == "rambleon-birdsongother"]
-    assert mine == list(range(3, MAX_CHAPTERS_IN_GAME + 3))          # 12 kept, the oldest two dropped
-    assert other == [1, 2]                                            # the other character keeps everything
-    assert len(chapters) == MAX_CHAPTERS_IN_GAME + 2
-    assert [c["startedAt"] for c in chapters] == sorted(c["startedAt"] for c in chapters)
-    assert len({c["guid"] for c in chapters}) == 2
+    both = nights(archive)
+    assert [chapter_numbers(both)[n["id"]] for n in both] == [1, 2]
+    assert {n["character"]["slug"] for n in both} == {"rambleon-birdsong"}
+    assert {n["character"]["guid"] for n in both} == {first["character"]["guid"]}
+    assert both[0]["id"] != both[1]["id"] and all(n["id"].endswith("-rambleon-birdsong") for n in both)
 
 
 def test_recap_wording():
@@ -89,26 +54,6 @@ def test_recap_wording():
     s = sessions_from_db(db)[0]
     recap = render_recap(s)
     assert recap.startswith("6m in Azeroth tonight.") and recap.rstrip().endswith("Ramble on.")
-
-
-def test_voices():
-    from rambleon.summarize import available_voices, build_prompt, load_voice
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
-    s = sessions_from_db(db)[0]
-    assert {"golden", "field-journal"} <= set(available_voices())
-    assert "Christie Golden" in load_voice("golden")
-    assert "{voice}" not in build_prompt(s, 1, "field-journal")
-    assert "field journal" in build_prompt(s, 1, "field-journal")
-
-
-def test_character_overrides(tmp_path, monkeypatch):
-    from rambleon import summarize as sm
-    (tmp_path / "rambleon.local.toml").write_text('[characters."rambleon-birdsong"]\ngender = "male"\n')
-    monkeypatch.setattr("rambleon.config.find_repo_root", lambda: tmp_path)
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
-    s = sessions_from_db(db)[0]
-    s["character"].pop("gender", None)
-    assert "Gender: male" in sm.build_prompt(s, 1, "field-journal")
 
 
 # --- screenshots on the story page ---------------------------------------------------------------
@@ -171,13 +116,6 @@ def test_web_copies_are_jpeg_when_sips_is_available(tmp_path):
     assert first.stat().st_mtime_ns == stamp                     # unchanged source → no rewrite
 
 
-def test_prompt_tells_the_writer_when_pictures_were_taken(tmp_path):
-    s = session_with_shots(tmp_path)
-    prompt = build_prompt(s, 1)
-    assert "screenshot taken when: Reached Level 11 in Dolanaar at" in prompt
-    assert str(tmp_path) not in prompt
-
-
 def test_tga_without_sips_is_skipped_not_broken(tmp_path, monkeypatch):
     monkeypatch.setattr(pub, "RESIZER", None)
     src = tmp_path / "WoWScrnShot_092226_200000.tga"; src.write_bytes(b"\x00" * 18)
@@ -205,7 +143,6 @@ def two_nights(tmp_path):
 
 
 def test_story_pages_link_to_neighbouring_chapters(tmp_path):
-    from rambleon.nights import nights
     archive = two_nights(tmp_path)
     n1, n2 = nights(archive)
     p1 = export_html(n1, archive, tmp_path / "exports")
@@ -232,9 +169,7 @@ def test_index_is_a_list_of_cards(tmp_path):
 def test_index_gives_each_character_their_own_section(tmp_path):
     """Two characters: a roster on top, then one section each (latest played first), never one mixed list."""
     import rambleon.publish as pub
-    from rambleon.guide import write_guide
-    from rambleon.nights import nights
-    from test_memory import _shifted
+    from helpers import _shifted
     archive, exports = Archive(tmp_path / "archive"), tmp_path / "exports"
     raw = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]["sessions"][0]
     raws = [_shifted(raw, d) for d in (0, 1, 3)] + [_shifted(raw, 2, "Other")]
@@ -242,7 +177,6 @@ def test_index_gives_each_character_their_own_section(tmp_path):
     for s in sessions_from_db({"sessions": raws}):
         archive.upsert_session(s, cap)
     archive.rebuild_index()
-    write_guide(archive, exports, "rambleon-birdsong", use_ai=False, log=lambda m: None)
     text = pub.write_html_index(archive, exports).read_text()
     assert "<h1>Adventure Journal</h1>" in text and "2 characters · 4 chapters" in text
     assert "<a class='char' href='#rambleon-birdsong'>" in text and "<a class='char' href='#rambleon-birdsongother'>" in text
@@ -251,9 +185,6 @@ def test_index_gives_each_character_their_own_section(tmp_path):
     assert text[mine:other].count("<a class='card'") == 3 and text[other:].count("<a class='card'") == 1
     assert "Chapter 1</span>" in text[other:] and "Chapter 3</span>" in text[mine:other]
     assert "Night Elf Druid · Alliance" in text[mine:other] and "3 chapters" in text[mine:other] and "1 chapter ·" in text[:mine]
-    # Each section links its own guide; the top bar no longer pretends there is one.
-    assert "<a href='guide-rambleon-birdsong.html'>Route guide</a>" in text[mine:other]
-    assert "Route guide" not in text[:mine] and "Route guide" not in text[other:]
     # A shared subset with one character left falls back to that character's own page, whoever played last overall.
     theirs = {pub._page_name(n) for n in nights(archive, "rambleon-birdsongother")}
     alone = pub.write_html_index(archive, exports, only=theirs, out=tmp_path / "i.html").read_text()
@@ -265,20 +196,7 @@ def _fixture_session():
     return sessions_from_db(db)[0]
 
 
-def test_catchup_lists_quests_by_zone():
-    text = render_catchup(_fixture_session())
-    lines = text.splitlines()
-    assert lines[0].startswith("Rambleon Birdsong — ") and "Level 10 → 12" in lines[0]
-    assert "Quests turned in (1)" in lines
-    i = lines.index("Teldrassil")
-    assert lines[i + 1] == '  - The Emerald Dreamcatcher (Dolanaar, lv 10)'
-    assert "Picked up, not finished yet (1)" in lines
-    assert any(l.startswith("  - Precious Waters") for l in lines)
-    assert any(l.startswith("Places: ") and "(Teldrassil)" in l for l in lines)
-    assert "*" not in text and "#" not in text
-
-
-def test_catchup_dedupes_across_sessions():
+def test_quests_dedupe_across_sessions():
     from rambleon.nights import build_night
     a = _fixture_session()
     b = dict(a, id=a["id"] + "-later", startedAt=a["startedAt"] + 3600, endedAt=a["endedAt"] + 3600,
@@ -287,20 +205,6 @@ def test_catchup_dedupes_across_sessions():
     q = quest_summary(night)
     assert [e["questID"] for e in q["completed"]] == [123]
     assert [e["questID"] for e in q["open"]] == [124]
-    assert render_catchup(night).count("The Emerald Dreamcatcher") == 1
-
-
-def test_catchup_missing_title_and_empty_night():
-    s = _fixture_session()
-    bare = dict(s, events=[{"type": "QUEST_COMPLETED", "questID": 999, "t": s["startedAt"], "level": 12}], zones=[])
-    text = render_catchup(bare)
-    assert "Elsewhere" in text and "  - quest 999 (lv 12)" in text
-    chain = dict(s, zones=[], events=[{"type": "QUEST_COMPLETED", "questID": i, "title": "Bashal'Aran", "zone": "Darkshore",
-                                        "level": 14, "t": s["startedAt"] + i} for i in (1, 2, 3)])
-    text = render_catchup(chain)
-    assert "Quests turned in (3)" in text and text.count("Bashal'Aran") == 1 and "Bashal'Aran ×3 (lv 14)" in text
-    empty = dict(s, events=[], zones=[])
-    assert "No quests turned in tonight." in render_catchup(empty)
 
 
 def _quest_ev(kind, qid, title, t, zone="Darkshore", subzone="Auberdine"):
@@ -330,9 +234,6 @@ def test_carried_over_quests():
     n3 = _night_with(base, quiet, 2 * day)
     assert [(ev["questID"], k) for ev, k in carried_over([n1, n2], n3)] == [(200, 1)]
     assert carried_over([], n1) == []
-    text = render_catchup(n2, carried_over([n1], n2))
-    assert "Still carrying from earlier chapters (1)" in text and "  - Fruit of the Sea (Auberdine, since Chapter 1)" in text
-    assert "Still carrying" not in render_catchup(n2)
 
 
 def _page(tmp_path, *nights_):
@@ -341,7 +242,6 @@ def _page(tmp_path, *nights_):
     for n in nights_:
         archive.upsert_session(n, cap)
     archive.rebuild_index()
-    from rambleon.nights import nights
     return archive, nights(archive)
 
 
@@ -379,20 +279,3 @@ def test_story_page_carries_open_quests_forward(tmp_path):
     assert ("<tr><td class='quest'>Fruit of the Sea</td><td class='where'>Auberdine</td><td class='since'>Chapter 1</td></tr></tbody></table>"
             "<p class='caveat'>") in t2
     assert "data-pane='open'" not in t2 and "aria-selected='true' data-pane='done'>Turned in<span class='n'>1</span>" in t2
-
-
-def test_index_and_story_pages_link_to_the_guide_only_when_it_is_there(tmp_path, monkeypatch):
-    import rambleon.publish as pub
-    from rambleon.guide import write_guide
-    from test_memory import three_nights
-    monkeypatch.setattr("rambleon.config.find_repo_root", lambda: tmp_path)
-    monkeypatch.delenv("RAMBLEON_GUIDE_MODE", raising=False)
-    archive, exports, n1, n2, n3 = three_nights(tmp_path)
-    assert "Route guide" not in pub.export_html(n3, archive, exports).read_text()
-    assert "Route guide" not in pub.write_html_index(archive, exports).read_text()
-    write_guide(archive, exports, "rambleon-birdsong", use_ai=False, log=lambda m: None)
-    page = pub.export_html(n3, archive, exports).read_text()
-    assert "<a href='guide-rambleon-birdsong.html'>Route guide</a>" in page
-    assert "<a href='guide-rambleon-birdsong.html'>Route guide</a>" in pub.write_html_index(archive, exports).read_text()
-    assert "Route guide" not in pub.export_html(n3, archive, exports, siblings={pub._page_name(n3)}).read_text()
-    assert "Route guide" not in pub.write_html_index(archive, exports, only={pub._page_name(n3)}, out=tmp_path / "i.html").read_text()

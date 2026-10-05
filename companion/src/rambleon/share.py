@@ -16,8 +16,7 @@ from typing import Any, Callable
 from .archive import Archive
 from .export import export_filename
 from .nights import nights as list_nights, resolve_night
-from .guide import write_guide
-from .pages import PROJECT_URL, guide_page_name
+from .pages import PROJECT_URL
 from .publish import export_html, write_html_index
 from .screenshots import refresh_session_screenshots
 
@@ -103,10 +102,6 @@ def _share(archive: Archive, paths: Any, refs: list[str], all_nights: bool, yes:
     wanted = {export_filename(n).replace(".md", ".html") for n in nights_}
     present = set() if all_nights or not example.is_dir() else {p.name for p in example.glob("*.html") if p.name != "index.html"}
     present |= wanted
-    # The route guide (one page per character) goes along whenever it has been written.
-    guides = [slug for slug in sorted({n["character"].get("slug", "") for n in nights_})
-              if slug and (html_dir / guide_page_name(slug)).exists()]
-    present |= {guide_page_name(slug) for slug in guides}
 
     # 1. Fresh pages, with late screenshots paired. Neighbouring chapters already on the site are re-rendered too,
     #    so their previous/next links pick up tonight's chapter.
@@ -118,9 +113,6 @@ def _share(archive: Archive, paths: Any, refs: list[str], all_nights: bool, yes:
             night = resolve_night(archive, night["id"]) or night
         page = export_html(night, archive, paths.exports_dir, siblings=present)
         result.pages.append(page.name)
-    for slug in guides:   # facts re-rendered against the shared set of pages; never an AI call from here
-        write_guide(archive, paths.exports_dir, slug, use_ai=False, log=lambda m: None, siblings=present)
-        result.pages.append(guide_page_name(slug))
 
     # 2. Copy into site/example.
     plan: list[tuple[Path, Path]] = []

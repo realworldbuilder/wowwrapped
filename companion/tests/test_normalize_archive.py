@@ -6,7 +6,6 @@ from rambleon.archive import Archive
 from rambleon.export import render_markdown
 from rambleon.luaparse import parse, to_python
 from rambleon.normalize import display_name, drop_death_echoes, normalize_session, sessions_from_db, surname
-from rambleon.summarize import build_prompt, split_output
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -124,18 +123,6 @@ def test_markdown_export_is_factual():
     assert "## Enemies Slain" in md and "Timberling × 2" in md
     assert "First Grell slain" in md and "8/8 Timberling slain" in md
     assert "## Loot Worth Keeping" in md and "Looted Arcane Staff ×2 (Rare)" in md and "Equipped Arcane Staff" in md
-
-
-def test_prompt_and_split():
-    s = load_sessions()[0]
-    prompt = build_prompt(s, 3)
-    assert "# Chapter 3" in prompt and "Only what happened" in prompt and "Moonhoof" in prompt
-    journal, recap, post = split_output("# Chapter 3 — Test\n\nbody\n\n---RECAP---\n2h in Azeroth.\nRamble on.")
-    assert journal.startswith("# Chapter 3") and recap.startswith("2h") and post is None
-    journal, recap, post = split_output("# Chapter 3 — Test\n\nbody\n\n---RECAP---\n2h in Azeroth.\nRamble on.\n"
-                                        "---POST---\nRambleon walked\nto Dolanaar.\n")
-    assert recap == "2h in Azeroth.\nRamble on.\n" and post == "Rambleon walked to Dolanaar." and "POST" not in journal
-    assert "---POST---" in prompt
 
 
 def test_display_name_survives_the_client_name_change():

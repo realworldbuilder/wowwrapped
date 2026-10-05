@@ -2,7 +2,7 @@
 
 One loader, `load_config`, reads the file into a typed `Config`. It never raises: a key it does not know or a
 value of the wrong kind becomes a warning and the default applies; a file that is not valid TOML sets `error`,
-and everything falls back to the defaults (so auto-share and auto-post are off until it is fixed).
+and everything falls back to the defaults (so auto-share is off until it is fixed).
 `ramble config` prints what is in effect; `ramble doctor` reports warnings."""
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ from typing import Any, Callable
 from .paths import find_repo_root
 
 FILENAME = "rambleon.local.toml"
-X_STYLES = ("post", "thread")
 
 
 @dataclass(frozen=True)
@@ -24,25 +23,9 @@ class ShareConfig:
 
 
 @dataclass(frozen=True)
-class XConfig:
-    auto: bool = False          # the watcher posts a finished night by itself
-    style: str = "post"         # "post" (the night in miniature) or "thread" (the whole chapter)
-    link: bool = False          # add the shared story page's address (X charges far more for a post with a link)
-    picture: bool = True        # attach the night's hero screenshot
-    lowercase: bool = False     # all lower case, the way you write there
-    delay: float = 30           # minutes of quiet after the chapter was written before the watcher posts
-    characters: tuple[str, ...] = ()   # slugs to post for; empty means all
-
-
-@dataclass(frozen=True)
-class GuideConfig:
-    mode: str | None = None     # a bundled guide mode or a path to your own .md; None means `route`
-
-
-@dataclass(frozen=True)
-class JournalConfig:
+class WrappedConfig:
     voice: str | None = None    # a voice profile (see `ramble voices`) or a path to your own .md
-    model: str | None = None    # the Claude model the chapter is written with
+    model: str | None = None    # the Claude model the Wrapped is narrated with
 
 
 @dataclass(frozen=True)
@@ -50,9 +33,7 @@ class Config:
     path: Path
     exists: bool = False
     share: ShareConfig = field(default_factory=ShareConfig)
-    x: XConfig = field(default_factory=XConfig)
-    guide: GuideConfig = field(default_factory=GuideConfig)
-    journal: JournalConfig = field(default_factory=JournalConfig)
+    wrapped: WrappedConfig = field(default_factory=WrappedConfig)
     characters: dict[str, dict[str, Any]] = field(default_factory=dict)   # slug -> character fields to override
     people: dict[str, str] = field(default_factory=dict)                  # roster name -> the player's note
     warnings: tuple[str, ...] = ()
@@ -67,29 +48,11 @@ def _is_text(v: Any) -> bool:
     return isinstance(v, str) and bool(v.strip())
 
 
-def _is_minutes(v: Any) -> bool:
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0
-
-
-def _is_names(v: Any) -> bool:
-    return isinstance(v, list) and all(isinstance(c, str) for c in v)
-
-
 # section -> key -> (accepts, what it should be). The dataclass above holds the default.
 Rule = tuple[Callable[[Any], bool], str]
 SECTIONS: dict[str, tuple[type, dict[str, Rule]]] = {
     "share": (ShareConfig, {"auto": (_is_bool, "true or false")}),
-    "x": (XConfig, {
-        "auto": (_is_bool, "true or false"),
-        "style": (lambda v: v in X_STYLES, " or ".join(f'"{s}"' for s in X_STYLES)),
-        "link": (_is_bool, "true or false"),
-        "picture": (_is_bool, "true or false"),
-        "lowercase": (_is_bool, "true or false"),
-        "delay": (_is_minutes, "a number of minutes, 0 or more"),
-        "characters": (_is_names, 'a list of character slugs, like ["rambleon-birdsong"]'),
-    }),
-    "guide": (GuideConfig, {"mode": (_is_text, "a guide mode or a path to a .md file")}),
-    "journal": (JournalConfig, {"voice": (_is_text, "a voice name or a path to a .md file"),
+    "wrapped": (WrappedConfig, {"voice": (_is_text, "a voice name or a path to a .md file"),
                                 "model": (_is_text, "a Claude model name")}),
 }
 FREE_SECTIONS = ("characters", "people")
@@ -150,8 +113,7 @@ def load_config(home: Path | None = None) -> Config:
     elif "people" in raw:
         warnings.append("[people] should hold one table per name; ignored")
     return Config(path=path, exists=True,
-                  share=_section("share", raw.get("share"), warnings), x=_section("x", raw.get("x"), warnings),
-                  guide=_section("guide", raw.get("guide"), warnings), journal=_section("journal", raw.get("journal"), warnings),
+                  share=_section("share", raw.get("share"), warnings), wrapped=_section("wrapped", raw.get("wrapped"), warnings),
                   characters=characters, people=people, warnings=tuple(warnings))
 
 
@@ -172,29 +134,17 @@ def share_auto(repo_root: Path | None = None) -> bool:
     return load_config(repo_root).share.auto
 
 
-def x_config(repo_root: Path | None = None) -> dict[str, Any]:
-    """`[x]` in rambleon.local.toml: how a finished chapter is told on X (see XConfig)."""
-    x = asdict(load_config(repo_root).x)
-    x["characters"] = list(x["characters"])
-    return x
-
-
-def guide_mode(repo_root: Path | None = None) -> str | None:
-    """`[guide] mode = "season"`: which prompt the watcher uses for the route guide."""
-    return load_config(repo_root).guide.mode
-
-
 def people_notes(repo_root: Path | None = None) -> dict[str, str]:
     """`[people."Cassidy"] note = "my friend from work"`: the player's own words about a companion, handed to
-    the writer as evidence on every chapter. Names match the roster name the game shows."""
+    the writer as evidence. Names match the roster name the game shows."""
     return dict(load_config(repo_root).people)
 
 
-def journal_voice(asked: str | None = None, repo_root: Path | None = None) -> str | None:
-    """The voice to write in: the one asked for, else RAMBLEON_VOICE, else `[journal] voice`. None means the default."""
-    return asked or os.environ.get("RAMBLEON_VOICE") or load_config(repo_root).journal.voice
+def writer_voice(asked: str | None = None, repo_root: Path | None = None) -> str | None:
+    """The voice to write in: the one asked for, else RAMBLEON_VOICE, else `[wrapped] voice`. None means the default."""
+    return asked or os.environ.get("RAMBLEON_VOICE") or load_config(repo_root).wrapped.voice
 
 
-def journal_model(asked: str | None = None, repo_root: Path | None = None) -> str | None:
-    """The model to write with: the one asked for, else RAMBLEON_MODEL, else `[journal] model`. None means the default."""
-    return asked or os.environ.get("RAMBLEON_MODEL") or load_config(repo_root).journal.model
+def writer_model(asked: str | None = None, repo_root: Path | None = None) -> str | None:
+    """The model to write with: the one asked for, else RAMBLEON_MODEL, else `[wrapped] model`. None means the default."""
+    return asked or os.environ.get("RAMBLEON_MODEL") or load_config(repo_root).wrapped.model

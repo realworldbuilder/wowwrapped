@@ -6,7 +6,6 @@ from pathlib import Path
 
 REPO = Path(__file__).parents[2]
 ADDON = REPO / "addon" / "Rambleon"
-GENERATED = {"Chapters.lua"}          # written by `ramble publish`; listed in the TOCs, never shipped
 
 
 def toc_files(name: str) -> list[str]:
@@ -18,9 +17,9 @@ def toc_version(name: str) -> str:
 
 
 def test_addon_file_lists_agree():
-    lua = {p.name for p in ADDON.glob("*.lua")} - GENERATED
+    lua = {p.name for p in ADDON.glob("*.lua")}
     camelot = toc_files("Rambleon_Camelot.toc")
-    assert set(camelot) - GENERATED == lua
+    assert set(camelot) == lua
     assert [f for f in camelot if f != "Forever.lua"] == toc_files("Rambleon.toc")     # same files, same order
     project = tomllib.loads((REPO / "companion" / "pyproject.toml").read_text())
     shipped = {Path(src).name for src in project["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]}

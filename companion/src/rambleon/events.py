@@ -49,8 +49,6 @@ def _loot(ev: Event) -> str:
 @dataclass(frozen=True)
 class EventType:
     describe: Callable[[Event], str]   # the line in the log, the timeline and the prompt
-    guide: str = "active"              # route guide: skip (never part of a stretch) | anchor (a visit with one stands
-    #                                    alone) | passive (being somewhere, not doing anything) | active
     stitch: str = "keep"               # when sessions become a night: keep | drop | first (only the night's first
     #                                    session's) | last (only the last session's)
     timeline: bool = True              # False: never listed
@@ -59,27 +57,27 @@ class EventType:
 
 
 EVENTS: dict[str, EventType] = {
-    "SESSION_START": EventType(_in_place("Began the adventure"), guide="skip", stitch="first", shot_fallback=False),
-    "RESUMED": EventType(lambda ev: "Picked the story back up", guide="skip", stitch="drop", timeline=False, shot_fallback=False),
-    "SESSION_END": EventType(lambda ev: "Ended the adventure", guide="skip", stitch="last", shot_fallback=False),
-    "ZONE_ENTER": EventType(_zone_enter, guide="passive"),
-    "LEVEL_UP": EventType(lambda ev: f"Reached Level {ev.get('level')}", guide="anchor", counter="levelsGained"),
+    "SESSION_START": EventType(_in_place("Began the adventure"), stitch="first", shot_fallback=False),
+    "RESUMED": EventType(lambda ev: "Picked the story back up", stitch="drop", timeline=False, shot_fallback=False),
+    "SESSION_END": EventType(lambda ev: "Ended the adventure", stitch="last", shot_fallback=False),
+    "ZONE_ENTER": EventType(_zone_enter),
+    "LEVEL_UP": EventType(lambda ev: f"Reached Level {ev.get('level')}", counter="levelsGained"),
     "QUEST_ACCEPTED": EventType(lambda ev: f"Accepted {_quest(ev)}", counter="questsAccepted"),
-    "QUEST_COMPLETED": EventType(lambda ev: f"Completed {_quest(ev)}", guide="anchor", counter="questsCompleted"),
-    "QUEST_ABANDONED": EventType(lambda ev: f"Abandoned {_quest(ev)}", guide="passive", counter="questsAbandoned"),
+    "QUEST_COMPLETED": EventType(lambda ev: f"Completed {_quest(ev)}", counter="questsCompleted"),
+    "QUEST_ABANDONED": EventType(lambda ev: f"Abandoned {_quest(ev)}", counter="questsAbandoned"),
     "OBJECTIVE_COMPLETE": EventType(lambda ev: f"{ev.get('text') or 'Objective complete'}" + (f" — \"{ev['title']}\"" if ev.get("title") else ""),
                                     counter="objectivesCompleted"),
-    "DEATH": EventType(lambda ev: f"Died in {place(ev) or 'the wilds'}", guide="anchor", counter="deaths"),
-    "REVIVED": EventType(lambda ev: "Back among the living", guide="passive"),
+    "DEATH": EventType(lambda ev: f"Died in {place(ev) or 'the wilds'}", counter="deaths"),
+    "REVIVED": EventType(lambda ev: "Back among the living"),
     "GROUP_JOIN": EventType(lambda ev: f"Joined forces with {ev.get('name')}" + (f" ({ev['class']})" if ev.get("class") else "")),
-    "GROUP_LEAVE": EventType(lambda ev: f"Parted ways with {ev.get('name')}", guide="passive"),
+    "GROUP_LEAVE": EventType(lambda ev: f"Parted ways with {ev.get('name')}"),
     "INSTANCE_ENTER": EventType(lambda ev: f"Entered {ev.get('name') or 'an instance'}"),
-    "INSTANCE_EXIT": EventType(lambda ev: f"Left {ev.get('name') or 'the instance'}", guide="passive"),
-    "BOSS_KILL": EventType(lambda ev: f"Defeated {ev.get('name') or 'a boss'}", guide="anchor"),
+    "INSTANCE_EXIT": EventType(lambda ev: f"Left {ev.get('name') or 'the instance'}"),
+    "BOSS_KILL": EventType(lambda ev: f"Defeated {ev.get('name') or 'a boss'}"),
     "HEARTH_BOUND": EventType(lambda ev: f"Made {ev.get('name') or place(ev) or 'this place'} home"),
     "ACHIEVEMENT": EventType(lambda ev: f"Earned achievement: {ev.get('name') or ev.get('id')}", counter="achievements"),
-    "SCREENSHOT": EventType(_screenshot, guide="passive", shot_fallback=False, counter="screenshots"),
-    "NOTE": EventType(lambda ev: f"Note: \"{ev.get('text')}\"", guide="anchor", counter="notes"),
+    "SCREENSHOT": EventType(_screenshot, shot_fallback=False, counter="screenshots"),
+    "NOTE": EventType(lambda ev: f"Note: \"{ev.get('text')}\"", counter="notes"),
     "MARK": EventType(_in_place("Marked moment"), counter="marks"),
     "FIRST_KILL": EventType(lambda ev: f"First {ev.get('name')} slain"),
     "LOOT": EventType(_loot, counter="loot"),
@@ -107,5 +105,5 @@ def shown(ev: Event) -> bool:
 
 
 def types_where(**wanted: Any) -> set[str]:
-    """The known types whose entry matches, e.g. types_where(guide="anchor")."""
+    """The known types whose entry matches, e.g. types_where(stitch="drop")."""
     return {name for name, et in EVENTS.items() if all(getattr(et, k) == v for k, v in wanted.items())}

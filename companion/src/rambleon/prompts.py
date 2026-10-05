@@ -1,8 +1,6 @@
 """The words Rambleon hands the writer, and the look of its pages: bundled files, and the player's own.
 
-    <home>/prompts/voices/<name>.md     a voice of your own (`--voice <name>`, or `[journal] voice`)
-    <home>/prompts/guides/<name>.md     a guide mode of your own (`ramble guide --mode <name>`)
-    <home>/prompts/journal.md           your own rules for the chapter, replacing the bundled ones
+    <home>/prompts/voices/<name>.md     a voice of your own (`--voice <name>`, or `[wrapped] voice`)
     <home>/prompts/theme.css            CSS added after the bundled page styles
 
 <home> is ~/Rambleon for a package install and the checkout otherwise (RAMBLEON_HOME overrides; the folder is
@@ -15,16 +13,12 @@ from pathlib import Path
 from .paths import find_repo_root
 
 BUNDLED = Path(__file__).parent / "prompts"
-KINDS = ("voices", "guides")
+KINDS = ("voices",)
 # What Rambleon fills in, per kind of prompt. Anything else in braces is sent to the writer as written; the
 # bundled prompts use that on purpose ({duration} in the recap template is for the model, not for us).
 PLACEHOLDERS = {
-    "journal": {"voice", "chapter"},
-    "guides": {"voice", "name", "pronouns", "startLevel", "endLevel", "nights"},
 }
 LITERAL = {
-    "journal": {"duration", "levels", "quests", "places", "deaths"},
-    "guides": {"number", "title"},
 }
 
 
@@ -50,16 +44,9 @@ def load(kind: str, name: str, home: Path | None = None) -> tuple[str, str, Path
         return candidate.stem, candidate.read_text(encoding="utf-8").strip(), candidate
     known = available(kind, home)
     if name not in known:
-        what = {"voices": "voice", "guides": "guide mode"}[kind]
+        what = {"voices": "voice"}[kind]
         raise ValueError(f"unknown {what} {name!r}; available: {', '.join(sorted(known))} (or a path to a .md file)")
     return name, known[name].read_text(encoding="utf-8").strip(), known[name]
-
-
-def journal_rules(home: Path | None = None) -> tuple[str, Path]:
-    """The rules every chapter is written by: the player's prompts/journal.md when there is one."""
-    own = user_dir(home) / "journal.md"
-    path = own if own.is_file() else BUNDLED / "journal.md"
-    return path.read_text(encoding="utf-8"), path
 
 
 def theme_css(home: Path | None = None) -> str:

@@ -31,8 +31,7 @@ def test_a_night_is_finished_step_by_step_and_marked(tmp_path):
     ctx = finish_night(archive, paths, "latest", log=logs.append, use_ai=False)
     assert list(ctx.results) == [s.name for s in pipeline.STEPS] and not ctx.failed
     assert ctx.results["share"].startswith("skipped") and ctx.results["notify"].startswith("skipped")   # by hand: nothing leaves the Mac
-    assert (paths.exports_dir / "prompts").glob("*-prompt.md") and list((paths.exports_dir / "prompts").glob("2026-*-prompt.md"))  # --no-ai still writes the prompt
-    assert ctx.outputs["page"].exists() and (paths.repo_root / "addon" / "Rambleon" / "Chapters.lua").exists()
+    assert ctx.outputs["page"].exists() and ctx.outputs["markdown"].exists()
     marker = json.loads(marker_path(paths.exports_dir, night["id"]).read_text())
     assert marker["formatVersion"] == 1 and marker["events"] == len(night["events"]) and marker["steps"]["page"] == "ok"
     assert is_finished(paths.exports_dir, night)
@@ -58,13 +57,7 @@ def test_what_counts_as_finished(tmp_path):
     archive, paths, night = archived(tmp_path)
     ended = night["endedAt"]
     assert not is_finished(paths.exports_dir, night)                          # nothing written yet
-    # before markers existed: a chapter written after the night's last minute, or else its story page
-    journal = paths.exports_dir / "journal" / f"{night['id']}.json"
-    atomic_write_json(journal, {"journal": "x", "createdAt": ended - 60})
-    assert not is_finished(paths.exports_dir, night)                          # the chapter misses the end of the night
-    atomic_write_json(journal, {"journal": "x", "createdAt": ended + 60})
-    assert is_finished(paths.exports_dir, night)
-    journal.unlink()
+    # before markers existed: a story page written after the night's last minute
     page = paths.exports_dir / "html" / f"{night['nightDate']}-rambleon-birdsong.html"
     page.parent.mkdir(parents=True)
     page.write_text("<p>page</p>")

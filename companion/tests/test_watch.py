@@ -74,9 +74,9 @@ def test_install_without_checkout_seeds_from_bundle(tmp_path, monkeypatch):
     msg = inst.install_addon(paths)
     assert "unpacked" in msg and (home / "addon" / "Rambleon" / "Core.lua").exists()
     assert (wow / "Interface" / "AddOns" / "Rambleon").is_symlink()
-    (home / "addon" / "Rambleon" / "Chapters.lua").write_text("RambleonChapters = {}\n")
-    inst.install_addon(paths)  # same version: nothing re-copied, generated file untouched
-    assert (home / "addon" / "Rambleon" / "Chapters.lua").exists()
+    (home / "addon" / "Rambleon" / "Core.lua").write_text("-- mine\n")
+    inst.install_addon(paths)  # same version: nothing re-copied
+    assert (home / "addon" / "Rambleon" / "Core.lua").read_text() == "-- mine\n"
 
 
 def test_a_failing_chapter_never_stops_the_watcher(tmp_path):

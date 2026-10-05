@@ -25,8 +25,7 @@ def _version_key(v: str) -> tuple:
 
 
 def ensure_addon_source(paths: Paths) -> str | None:
-    """Without a checkout, seed (or upgrade) ~/Rambleon/addon/Rambleon from the AddOn bundled in the package.
-    Generated files (Chapters.lua) are preserved. Returns a message when something was copied."""
+    """Without a checkout, seed (or upgrade) ~/Rambleon/addon/Rambleon from the AddOn bundled in the package. Returns a message when something was copied."""
     dest = paths.addon_src
     bundled = bundled_addon()
     if bundled is None or bundled.resolve() == dest.resolve():

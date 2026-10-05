@@ -1,5 +1,5 @@
 """What every HTML page shares: the document around it, the styles, the top bar, and the small pieces
-(paragraphs, figures, page names). The story page and index (publish.py) and the route guide (guide.py)
+(paragraphs, figures, page names). The story page and index (publish.py)
 are bodies inside `shell`; a new kind of page is one more body."""
 from __future__ import annotations
 
@@ -16,12 +16,10 @@ FONTS = ("<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
          "<link href='https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap' rel='stylesheet'>")
 
 
-def css(guide: bool = False) -> str:
-    """The page styles (assets/page.css, plus assets/guide.css for the route guide), then the player's own
-    prompts/theme.css when there is one: later rules win, so a theme only says what it changes."""
+def css() -> str:
+    """The page styles (assets/page.css), then the player's own prompts/theme.css when there is one: later
+    rules win, so a theme only says what it changes."""
     text = "\n" + (ASSETS / "page.css").read_text(encoding="utf-8")
-    if guide:
-        text += "\n" + (ASSETS / "guide.css").read_text(encoding="utf-8")
     theme = theme_css()
     if theme.strip():
         text += "\n/* prompts/theme.css */\n" + theme.rstrip() + "\n"
@@ -34,12 +32,12 @@ def top_nav(*links: tuple[str, str], home: str = "index.html") -> str:
             + "".join(f"<a href='{html.escape(href)}'>{html.escape(label)}</a>" for label, href in links) + "</nav>")
 
 
-def shell(title: str, nav: str, body: str, footer: str, body_attrs: str = "", guide: bool = False) -> str:
+def shell(title: str, nav: str, body: str, footer: str, body_attrs: str = "") -> str:
     """A whole page. `title`, `nav`, `body` and `footer` are HTML already (escape what goes into them)."""
     return "\n".join([
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
         f"<title>{title}</title>",
-        f"{FONTS}<style>{css(guide)}</style></head><body{body_attrs}>",
+        f"{FONTS}<style>{css()}</style></head><body{body_attrs}>",
         nav,
         body,
         f"<footer>{footer}</footer></body></html>",
@@ -64,11 +62,6 @@ def figure(img: dict[str, Any], cls: str = "") -> str:
 def page_name(session: dict[str, Any]) -> str:
     """A night's story page."""
     return export_filename(session).replace(".md", ".html")
-
-
-def guide_page_name(slug: str) -> str:
-    """A character's route guide page (guide.py writes it); story pages and the index link to it when it exists."""
-    return f"guide-{slug}.html"
 
 
 def index_anchor(slug: str) -> str:

@@ -237,62 +237,6 @@ def _collapse_carried(carried: list[tuple[dict[str, Any], int]]) -> list[tuple[d
     return out
 
 
-def render_catchup(night: dict[str, Any], carried: list[tuple[dict[str, Any], int]] | None = None) -> str:
-    """A plain-text quest list to paste to a friend: what was turned in tonight, where, what is still open,
-    and (`carried`, from carried_over()) what is still being carried from earlier chapters."""
-    c = night.get("character", {})
-    started = night.get("startedAt")
-    when = datetime.fromtimestamp(started).strftime("%A, %B %-d") if started else "Unknown date"
-    start, end = c.get("startLevel"), c.get("endLevel")
-    if start and end and start != end:
-        level = f"Level {start} → {end}"
-    elif end:
-        level = f"Level {end}"
-    else:
-        level = ""
-    header = " — ".join(x for x in (c.get("displayName", "Unknown"), when, level) if x)
-    lines = [header]
-    if night.get("state") not in ("ended",):
-        lines.append("(night still open — captured as last seen)")
-    q = quest_summary(night)
-    lines.append("")
-    if not q["completed"] and not q["open"]:
-        lines.append("No quests turned in tonight.")
-    if q["completed"]:
-        lines.append(f"Quests turned in ({len(q['completed'])})")
-        for zone, evs in _by_zone(q["completed"]):
-            lines.append(zone)
-            for ev, n in _collapse_titles(evs):
-                detail = [d for d in (ev.get("subzone"), f"lv {ev['level']}" if ev.get("level") else None) if d]
-                lines.append(f"  - {_quest_label(ev)}{_times(n)}" + (f" ({', '.join(detail)})" if detail else ""))
-    if q["open"]:
-        if q["completed"]:
-            lines.append("")
-        lines.append(f"Picked up, not finished yet ({len(q['open'])})")
-        for ev, n in _collapse_titles(q["open"]):
-            where = place(ev)
-            lines.append(f"  - {_quest_label(ev)}{_times(n)}" + (f" ({where})" if where else ""))
-    if carried:
-        if q["completed"] or q["open"]:
-            lines.append("")
-        lines.append(f"Still carrying from earlier chapters ({len(carried)})")
-        for ev, n, k in _collapse_carried(carried):
-            detail = [d for d in (place(ev), f"since Chapter {k}") if d]
-            lines.append(f"  - {_quest_label(ev)}{_times(n)} ({', '.join(detail)})")
-    places = _by_zone([z for z in night.get("zones", []) if z.get("subzone")])
-    if places:
-        lines.append("")
-        parts = []
-        for zone, zs in places:
-            names: list[str] = []
-            for z in zs:
-                if z["subzone"] not in names:
-                    names.append(z["subzone"])
-            parts.append(f"{', '.join(names)} ({zone})")
-        lines.append("Places: " + "; ".join(parts))
-    return "\n".join(lines) + "\n"
-
-
 def export_filename(session: dict[str, Any], suffix: str = "") -> str:
     started = session.get("startedAt") or 0
     day = session.get("nightDate") or datetime.fromtimestamp(started).strftime("%Y-%m-%d")

@@ -16,7 +16,7 @@ runner = CliRunner()
 
 @pytest.fixture
 def home(tmp_path, monkeypatch):
-    """RAMBLEON_HOME (set by conftest) with the simulated evening archived and a place for Chapters.lua."""
+    """RAMBLEON_HOME (set by conftest) with the simulated evening archived."""
     monkeypatch.setenv("COLUMNS", "200")          # tables are not squeezed into a narrow test terminal
     home = tmp_path / "home"
     (home / "addon" / "Rambleon").mkdir(parents=True)
@@ -44,29 +44,17 @@ def test_the_everyday_commands(home):
     assert "Journey" in run("show", "latest")
     assert "exported" in run("export", "latest")
     assert "golden (default)" in run("voices") and "bundled" in run("voices")
-    assert "[journal]" in run("config") and "not there" in run("config")
-    assert "The Emerald Dreamcatcher" in run("catchup", "latest")
-    out = run("summarize", "latest", "--no-ai")
-    assert "prompt:" in out and list((home / "exports" / "prompts").glob("*-prompt.md"))
+    assert "[wrapped]" in run("config") and "not there" in run("config")
     run("page", "latest", "--no-open")
     assert list((home / "exports" / "html").glob("2026-*.html"))
-    assert "Chapters.lua" in run("publish").replace("\n", "") and (home / "addon" / "Rambleon" / "Chapters.lua").exists()
-    assert "format = 1," in (home / "addon" / "Rambleon" / "Chapters.lua").read_text()
-    assert "html:" in run("guide", "latest", "--no-ai")
-    assert "route" in run("guide", "--list")
 
 
 def test_finish_runs_every_step_and_shares_nothing(home):
     out = run("finish", "latest", "--no-ai")
-    for step in ("screenshots", "markdown", "journal", "guide", "page", "index", "game"):
+    for step in ("screenshots", "markdown", "page", "index"):
         assert f"{step}: ok" in out
     assert "share: skipped" in out and "notify: skipped" in out
     assert list((home / "exports" / "finished").glob("night-*.json"))
-
-
-def test_post_dry_run_shows_the_text_and_posts_nothing(home):
-    out = run("post", "latest", "--dry-run")
-    assert "dry run: nothing posted" in out and not (home / "archive" / "posts" / "x.json").exists()
 
 
 def test_what_goes_wrong_is_one_line_and_exit_code_1(home):
@@ -74,9 +62,7 @@ def test_what_goes_wrong_is_one_line_and_exit_code_1(home):
     assert "no night matches" in run("finish", "1999-01-01", code=1)
     assert "no archived session matches" in run("show", "nope", code=1)
     assert "needs the Rambleon git checkout" in run("share", "--dry-run", code=1).replace("\n", " ")
-    assert "unknown voice" in run("summarize", "latest", "--voice", "nope", code=1)
-    (home / "rambleon.local.toml").write_text("[x\nauto = true\n")
-    assert "not valid TOML" in run("post", "latest", "--dry-run", code=1)
+    (home / "rambleon.local.toml").write_text("[share\nauto = true\n")
     assert "not valid TOML" in run("config", code=1)
     (home / "rambleon.local.toml").unlink()
     session_file = Archive(home / "archive").session_files()[0]

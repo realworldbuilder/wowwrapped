@@ -133,12 +133,12 @@ def run_doctor(paths: Paths, check_ai: bool = False) -> list[Check]:
             v = "version unknown"
         logged_in = _claude_logged_in(claude) if check_ai else None
         if logged_in is False:
-            checks.append(Check("Claude CLI", "NOT LOGGED IN", f"{claude} ({v}) — run `claude`, then `/login`; chapters are prompt-only until then", True, essential=False))
+            checks.append(Check("Claude CLI", "NOT LOGGED IN", f"{claude} ({v}) — run `claude`, then `/login`; the Wrapped is facts-only until then", True, essential=False))
         else:
             note = "" if check_ai else "; login not checked (`ramble doctor --check-ai` asks it one small question)"
             checks.append(Check("Claude CLI", "FOUND", f"{claude} ({v}){note}", True, essential=False))
     else:
-        checks.append(Check("Claude CLI", "NOT FOUND", "optional; `ramble summarize` will still write the prompt", True, essential=False))
+        checks.append(Check("Claude CLI", "NOT FOUND", "optional; the Wrapped is built from facts either way", True, essential=False))
     return checks
 
 

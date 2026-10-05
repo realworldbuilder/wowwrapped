@@ -26,13 +26,12 @@ jobs:
       - name: The wheel carries the AddOn, the prompts and the page styles
         run: |
           unzip -l companion/dist/*.whl > wheel.txt
-          for f in addon/Rambleon/Rambleon.toc addon/Rambleon/EventTypes.lua prompts/journal.md prompts/guides/route.md assets/page.css assets/guide.css; do
+          for f in addon/Rambleon/Rambleon.toc addon/Rambleon/EventTypes.lua prompts/voices/golden.md assets/page.css; do
             grep -q "rambleon/$f" wheel.txt || { echo "missing from the wheel: $f"; exit 1; }
           done
       - name: Package the AddOn
         run: |
           mkdir -p dist
-          rm -f addon/Rambleon/Chapters.lua
           (cd addon && zip -r "../dist/Rambleon-${GITHUB_REF_NAME}.zip" Rambleon -x '*.DS_Store')
       - uses: actions/upload-artifact@v4
         with:

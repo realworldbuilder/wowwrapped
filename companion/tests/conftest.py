@@ -21,9 +21,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("RAMBLEON_WOW_DIR", str(tmp_path / "no-wow"))      # never this Mac's World of Warcraft
     for target in ("rambleon.notify.notify", "rambleon.cli.notify", "rambleon.pipeline.notify"):
         monkeypatch.setattr(target, lambda *a, **k: None)
-    for target in ("rambleon.summarize.claude_available", "rambleon.guide.claude_available"):
-        monkeypatch.setattr(target, lambda: None)
-    monkeypatch.setattr("rambleon.xpost.load_credentials", lambda *a, **k: None)
+    monkeypatch.setattr("rambleon.writer.claude_available", lambda: None)
     yield
     monkeypatch.undo()
     time.tzset()
