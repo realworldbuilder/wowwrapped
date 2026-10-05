@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Install (symlink) the Rambleon AddOn into the WoW: Forever AddOns folder.
+# Install (symlink) the WoWwrapped AddOn into the WoW: Forever AddOns folder.
 # Usage: scripts/install-addon [--copy] [--wow-dir "/Applications/World of Warcraft/_classic_beta_"]
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="$REPO/addon/Rambleon"
-WOW_DIR="${RAMBLEON_WOW_DIR:-/Applications/World of Warcraft/_classic_beta_}"
+SRC="$REPO/addon/WoWwrapped"
+WOW_DIR="${WOWWRAPPED_WOW_DIR:-/Applications/World of Warcraft/_classic_beta_}"
 MODE="link"
 
 while [[ $# -gt 0 ]]; do
@@ -18,15 +18,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 ADDONS="$WOW_DIR/Interface/AddOns"
-DEST="$ADDONS/Rambleon"
+DEST="$ADDONS/WoWwrapped"
 
-[[ -f "$SRC/Rambleon.toc" ]] || { echo "AddOn source missing: $SRC" >&2; exit 1; }
+[[ -f "$SRC/WoWwrapped.toc" ]] || { echo "AddOn source missing: $SRC" >&2; exit 1; }
 [[ -d "$WOW_DIR" ]] || { echo "WoW directory not found: $WOW_DIR" >&2; exit 1; }
 mkdir -p "$ADDONS"
 
 if [[ -L "$DEST" ]]; then
   if [[ "$MODE" == "link" && "$(readlink "$DEST")" == "$SRC" ]]; then
-    echo "Rambleon already linked: $DEST -> $SRC"
+    echo "WoWwrapped already linked: $DEST -> $SRC"
     exit 0
   fi
   rm "$DEST"

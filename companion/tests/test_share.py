@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from rambleon.archive import Archive
-from rambleon.luaparse import parse, to_python
-from rambleon.normalize import sessions_from_db
-from rambleon.paths import Paths
-from rambleon.share import ShareError, pages_url, share
+from wowwrapped.archive import Archive
+from wowwrapped.luaparse import parse, to_python
+from wowwrapped.normalize import sessions_from_db
+from wowwrapped.paths import Paths
+from wowwrapped.share import ShareError, pages_url, share
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -20,7 +20,7 @@ def checkout(tmp_path: Path) -> Path:
     (repo / ".github" / "workflows").mkdir(parents=True)
     (repo / ".github" / "workflows" / "pages.yml").write_text("name: Pages\n")
     for cmd in (["git", "init", "-q", "-b", "main"], ["git", "config", "user.email", "t@example.com"], ["git", "config", "user.name", "t"],
-                ["git", "remote", "add", "origin", "https://github.com/someone/rambleon.git"], ["git", "add", "."], ["git", "commit", "-q", "-m", "init"]):
+                ["git", "remote", "add", "origin", "https://github.com/someone/wowwrapped.git"], ["git", "add", "."], ["git", "commit", "-q", "-m", "init"]):
         subprocess.run(cmd, cwd=repo, check=True, capture_output=True)
     return repo
 
@@ -28,7 +28,7 @@ def checkout(tmp_path: Path) -> Path:
 def archived(tmp_path: Path, repo: Path):
     paths = Paths(repo_root=repo, wow_dir=tmp_path / "wow", archive_dir=tmp_path / "archive", exports_dir=tmp_path / "exports")
     archive = Archive(paths.archive_dir)
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     s = sessions_from_db(db)[0]
     archive.upsert_session(s, {"capturedAt": int(time.time()), "rawSnapshot": "x", "sourceHash": "h"})
     archive.rebuild_index()
@@ -55,7 +55,7 @@ def test_share_copies_commits_and_pushes(tmp_path):
     assert result.committed and result.pushed and pushes == [["git", "-C", str(repo), "push", "origin", "HEAD"]]
     last = subprocess.run(["git", "log", "-1", "--format=%s"], cwd=repo, capture_output=True, text=True).stdout.strip()
     assert last.startswith("Journal: 20")
-    assert result.urls == [f"https://someone.github.io/rambleon/example/{page}"]
+    assert result.urls == [f"https://someone.github.io/wowwrapped/example/{page}"]
     # nothing new the second time
     again = share(archive, paths, ["tonight"], yes=True, runner=recording_runner(pushes))
     assert not again.committed and "nothing new" in again.message and len(pushes) == 1
@@ -80,32 +80,32 @@ def test_share_needs_the_checkout(tmp_path):
 
 
 def test_pages_url():
-    assert pages_url("git@github.com:me/rambleon.git", "x.html") == "https://me.github.io/rambleon/example/x.html"
-    assert pages_url("https://github.com/me/rambleon", "") == "https://me.github.io/rambleon/example/"
+    assert pages_url("git@github.com:me/wowwrapped.git", "x.html") == "https://me.github.io/wowwrapped/example/x.html"
+    assert pages_url("https://github.com/me/wowwrapped", "") == "https://me.github.io/wowwrapped/example/"
     assert pages_url("https://example.org/foo.git", "x") is None
 
 
 def test_share_auto_is_off_unless_this_machine_says_so(tmp_path):
-    from rambleon.config import share_auto
+    from wowwrapped.config import share_auto
     assert share_auto(tmp_path) is False
-    (tmp_path / "rambleon.local.toml").write_text("[share]\nauto = true\n")
+    (tmp_path / "wowwrapped.local.toml").write_text("[share]\nauto = true\n")
     assert share_auto(tmp_path) is True
-    (tmp_path / "rambleon.local.toml").write_text("[share]\nauto = false\n")
+    (tmp_path / "wowwrapped.local.toml").write_text("[share]\nauto = false\n")
     assert share_auto(tmp_path) is False
 
 
 def test_finished_night_is_shared_when_auto_is_on(tmp_path, monkeypatch):
-    from rambleon import cli, pipeline
+    from wowwrapped import cli, pipeline
     repo = checkout(tmp_path)
     archive, paths = archived(tmp_path, repo)
-    (repo / "addon" / "Rambleon").mkdir(parents=True)
+    (repo / "addon" / "WoWwrapped").mkdir(parents=True)
     calls: list = []
     monkeypatch.setattr(pipeline, "run_share", lambda archive_, paths_, refs, **kw: calls.append((refs, kw)) or type(
         "R", (), {"message": "pushed", "urls": ["https://x/y.html"], "pushed": True})())
     session = archive.load_session("latest")
     cli._finish_night(archive, paths, use_ai=False, model="sonnet")(session)
     assert calls == []                                       # no toml: nothing leaves the Mac
-    (repo / "rambleon.local.toml").write_text("[share]\nauto = true\n")
+    (repo / "wowwrapped.local.toml").write_text("[share]\nauto = true\n")
     cli._finish_night(archive, paths, use_ai=False, model="sonnet")(session)
     assert len(calls) == 1 and calls[0][0][0].startswith("night-") and calls[0][1]["yes"] is True
 

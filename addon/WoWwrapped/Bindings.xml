@@ -1,0 +1,8 @@
+<Bindings>
+  <Binding name="WOWWRAPPED_TOGGLE" category="ADDONS">
+    WoWwrapped.Toggle()
+  </Binding>
+  <Binding name="WOWWRAPPED_MARK" category="ADDONS">
+    WoWwrapped.Mark()
+  </Binding>
+</Bindings>

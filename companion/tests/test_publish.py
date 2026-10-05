@@ -1,32 +1,32 @@
 import time
 from pathlib import Path
 
-from rambleon.archive import Archive
-from rambleon.luaparse import parse, to_python
-from rambleon.normalize import sessions_from_db
-from rambleon.nights import chapter_numbers, nights
-from rambleon.publish import export_html
-from rambleon.export import carried_over, quest_summary, render_recap
+from wowwrapped.archive import Archive
+from wowwrapped.luaparse import parse, to_python
+from wowwrapped.normalize import sessions_from_db
+from wowwrapped.nights import chapter_numbers, nights
+from wowwrapped.publish import export_html
+from wowwrapped.export import carried_over, quest_summary, render_recap
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_publish_roundtrip(tmp_path):
     archive = Archive(tmp_path / "archive")
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     s = sessions_from_db(db)[0]
     archive.upsert_session(s, {"capturedAt": int(time.time()), "rawSnapshot": "x", "sourceHash": "h"})
     archive.rebuild_index()
     page = export_html(s, archive, tmp_path / "exports")
     text = page.read_text()
-    assert "<h1>Chapter 1" in text and "Travelled with Moonhoof" in text and "Ramble on." in text
+    assert "<h1>Chapter 1" in text and "Travelled with Moonhoof" in text and "s a wrap." in text
 
 
 def test_two_nights_of_one_character_are_numbered_in_order(tmp_path):
     """The client changed how it spells the name between builds; the same GUID must stay one character."""
     import copy
     archive = Archive(tmp_path / "archive")
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     first = sessions_from_db(db)[0]
     raw_second = copy.deepcopy(db["sessions"][0])
     raw_second["id"] = raw_second["id"].replace("_rambleon-birdsong", "_rambleon")
@@ -50,10 +50,10 @@ def test_two_nights_of_one_character_are_numbered_in_order(tmp_path):
 
 
 def test_recap_wording():
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     s = sessions_from_db(db)[0]
     recap = render_recap(s)
-    assert recap.startswith("6m in Azeroth tonight.") and recap.rstrip().endswith("Ramble on.")
+    assert recap.startswith("6m in Azeroth tonight.") and recap.rstrip().endswith("That's a wrap.")
 
 
 # --- screenshots on the story page ---------------------------------------------------------------
@@ -62,14 +62,14 @@ import base64
 import os
 import shutil
 
-from rambleon import publish as pub
-from rambleon.screenshots import attach_screenshots
+from wowwrapped import publish as pub
+from wowwrapped.screenshots import attach_screenshots
 
 PNG_1x1 = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
 
 
 def session_with_shots(tmp_path):
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     s = sessions_from_db(db)[0]
     wow_shots = tmp_path / "Screenshots"; wow_shots.mkdir()
     shots = [ev for ev in s["events"] if ev["type"] == "SCREENSHOT"]
@@ -127,7 +127,7 @@ def test_tga_without_sips_is_skipped_not_broken(tmp_path, monkeypatch):
 def two_nights(tmp_path):
     import copy
     archive = Archive(tmp_path / "archive")
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     first = sessions_from_db(db)[0]
     raw_second = copy.deepcopy(db["sessions"][0])
     raw_second["id"] += "_2"
@@ -158,7 +158,7 @@ def test_story_pages_link_to_neighbouring_chapters(tmp_path):
 
 
 def test_index_is_a_list_of_cards(tmp_path):
-    import rambleon.publish as pub
+    import wowwrapped.publish as pub
     archive = two_nights(tmp_path)
     text = pub.write_html_index(archive, tmp_path / "exports").read_text()
     assert text.count("<a class='card'") == 2 and "<span class='n'>Chapter 2</span>" in text
@@ -168,10 +168,10 @@ def test_index_is_a_list_of_cards(tmp_path):
 
 def test_index_gives_each_character_their_own_section(tmp_path):
     """Two characters: a roster on top, then one section each (latest played first), never one mixed list."""
-    import rambleon.publish as pub
+    import wowwrapped.publish as pub
     from helpers import _shifted
     archive, exports = Archive(tmp_path / "archive"), tmp_path / "exports"
-    raw = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]["sessions"][0]
+    raw = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]["sessions"][0]
     raws = [_shifted(raw, d) for d in (0, 1, 3)] + [_shifted(raw, 2, "Other")]
     cap = {"capturedAt": int(time.time()), "rawSnapshot": "x", "sourceHash": "h"}
     for s in sessions_from_db({"sessions": raws}):
@@ -192,12 +192,12 @@ def test_index_gives_each_character_their_own_section(tmp_path):
 
 
 def _fixture_session():
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     return sessions_from_db(db)[0]
 
 
 def test_quests_dedupe_across_sessions():
-    from rambleon.nights import build_night
+    from wowwrapped.nights import build_night
     a = _fixture_session()
     b = dict(a, id=a["id"] + "-later", startedAt=a["startedAt"] + 3600, endedAt=a["endedAt"] + 3600,
              events=[dict(e, t=e["t"] + 3600) for e in a["events"]])
@@ -212,7 +212,7 @@ def _quest_ev(kind, qid, title, t, zone="Darkshore", subzone="Auberdine"):
 
 
 def _night_with(base, events, offset):
-    from rambleon.nights import build_night
+    from wowwrapped.nights import build_night
     s = dict(base, id=f"{base['id']}-{offset}", startedAt=base["startedAt"] + offset, endedAt=base["endedAt"] + offset,
              events=[dict(e, t=e["t"] + offset) for e in events])
     return build_night([s])

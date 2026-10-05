@@ -1,7 +1,7 @@
--- Offline smoke test: load Rambleon under the stub, play a scripted session, check the DB is SV-safe,
+-- Offline smoke test: load WoWwrapped under the stub, play a scripted session, check the DB is SV-safe,
 -- and write a Blizzard-format fixture for the companion's parser tests.
 local here = arg[0]:match("^(.*)/[^/]*$") or "."
-local addonDir = here .. "/../Rambleon"
+local addonDir = here .. "/../WoWwrapped"
 local WoW = dofile(here .. "/wowstub.lua")
 
 local ns = {}
@@ -9,13 +9,13 @@ local files = { "Forever.lua", "Util.lua", "EventTypes.lua", "Core.lua", "Sessio
 for _, f in ipairs(files) do
   local chunk, err = loadfile(addonDir .. "/" .. f)
   assert(chunk, err)
-  chunk("Rambleon", ns)
+  chunk("WoWwrapped", ns)
 end
 
 local function assertEq(a, b, msg) if a ~= b then error((msg or "") .. ": expected " .. tostring(b) .. " got " .. tostring(a), 2) end end
 
 -- Boot
-WoW.Fire("ADDON_LOADED", "Rambleon")
+WoW.Fire("ADDON_LOADED", "WoWwrapped")
 WoW.Fire("PLAYER_LOGIN")
 assertEq(#WoW.chat, 1, "chat stays quiet: one line at login")
 assert(WoW.chat[1]:find("welcome", 1, true), "a first login is welcomed in that one line")
@@ -128,18 +128,18 @@ ns.HandleSlash("mark"); WoW.Advance(1)              -- a second mark right away:
 assertEq(WoW.screenshots, 3, "rate limit between automatic screenshots")
 ns.HandleSlash("status")
 ns.HandleSlash("")                               -- toggles panel (builds UI)
-assert(RambleonPanel:IsShown(), "panel shown")
-assertEq(WoW.lastPopup, "RAMBLEON_WELCOME", "the first time the log opens, a welcome")
-assertEq(RambleonDB.settings.welcomed, true, "welcomed once")
+assert(WoWwrappedPanel:IsShown(), "panel shown")
+assertEq(WoW.lastPopup, "WOWWRAPPED_WELCOME", "the first time the log opens, a welcome")
+assertEq(WoWwrappedDB.settings.welcomed, true, "welcomed once")
 WoW.lastPopup = nil
 ns.HandleSlash(""); ns.HandleSlash("")           -- closed and opened again
 assertEq(WoW.lastPopup, nil, "and never again")
 assert(not ns.IsFirstRun(), "no longer a first run")
 WoW.Advance(3)                                   -- clear the screenshot rate limit
 ns.HandleSlash("mark")                           -- MARK MOMENT with the panel open
-assert(not RambleonPanel:IsShown(), "panel hidden for the picture")
+assert(not WoWwrappedPanel:IsShown(), "panel hidden for the picture")
 WoW.Advance(1)
-assert(RambleonPanel:IsShown(), "panel back after the picture")
+assert(WoWwrappedPanel:IsShown(), "panel back after the picture")
 assertEq(lastOfType("SCREENSHOT").reason, "MARK", "panel mark still photographed")
 ns.UI.Refresh()
 ns.HandleSlash("debug")
@@ -168,13 +168,13 @@ WoW.Advance(3)                                   -- clear the screenshot rate li
 assertEq(ns.session.counters.questsAbandoned, 1, "one quest abandoned")
 assertEq(lastOfType("QUEST_ABANDONED").title, "A Troubling Breeze", "abandoned quest title")
 ns.HandleSlash("shots off")
-assertEq(RambleonDB.settings.autoScreenshots, false, "auto shots persisted off")
+assertEq(WoWwrappedDB.settings.autoScreenshots, false, "auto shots persisted off")
 WoW.state.level = 12; WoW.state.xp, WoW.state.xpMax = 100, 1200; WoW.Fire("PLAYER_LEVEL_UP", 12)
 assertEq(ns.session.counters.xpGained, 50 + 50 + 100, "xp gained")
 WoW.Advance(2)
 assertEq(WoW.screenshots, 4, "no screenshot while shots are off")
 ns.HandleSlash("shots on")
-assertEq(RambleonDB.settings.autoScreenshots, true, "auto shots persisted on")
+assertEq(WoWwrappedDB.settings.autoScreenshots, true, "auto shots persisted on")
 
 -- Quest objectives: first scan seeds silently, later completions are events
 WoW.state.questLog = { { questID = 124, title = "Precious Waters", objectives = { { text = "0/8 Timberling slain", finished = false } } } }
@@ -204,7 +204,7 @@ assertEq(ns.session.events[#ns.session.events].quality, 2, "quality from |cnIQ2:
 assertEq(ns.lootStats.lines, 5, "loot lines counted"); assertEq(ns.lootStats.parsed, 4, "loot lines read")
 assertEq(ns.lootStats.lastUnparsed, nil, "nothing unread")
 WoW.Fire("CHAT_MSG_LOOT", "You receive loot: something without a link.")
-assertEq(ns.lootStats.lastUnparsed, "You receive loot: something without a link.", "unread line kept for /ramble debug")
+assertEq(ns.lootStats.lastUnparsed, "You receive loot: something without a link.", "unread line kept for /wrapped debug")
 WoW.state.equipped[16] = blue
 WoW.Fire("PLAYER_EQUIPMENT_CHANGED", 16, true)
 WoW.Fire("PLAYER_EQUIPMENT_CHANGED", 16, true)
@@ -239,8 +239,8 @@ assertEq(lastOfType("INSTANCE_EXIT").name, "Ragefire Chasm", "the exit remembers
 -- End chapter through the UI path
 WoW.Advance(280)
 ns.UI.PromptEndChapter()
-assertEq(WoW.lastPopup, "RAMBLEON_END", "end popup")
-StaticPopupDialogs.RAMBLEON_END.OnAccept()
+assertEq(WoW.lastPopup, "WOWWRAPPED_END", "end popup")
+StaticPopupDialogs.WOWWRAPPED_END.OnAccept()
 assertEq(ns.session.state, "ended", "ended")
 assertEq(ns.session.endReason, "save", "end reason")
 assert(WoW.reloadCalled, "reload attempted")
@@ -271,8 +271,8 @@ end
 -- Marking after an ended chapter starts a fresh chapter automatically
 ns.HandleSlash("mark")
 assert(ns.session ~= ended, "new session after end")
-assertEq(#RambleonDB.sessions, 2, "two sessions in DB")
-assert(RambleonDB.sessions[1].id ~= RambleonDB.sessions[2].id, "session ids must differ")
+assertEq(#WoWwrappedDB.sessions, 2, "two sessions in DB")
+assert(WoWwrappedDB.sessions[1].id ~= WoWwrappedDB.sessions[2].id, "session ids must differ")
 
 -- Logout suspends
 WoW.Fire("PLAYER_LOGOUT")
@@ -292,14 +292,14 @@ local function check(v, path)
     assert(t == "string" or t == "boolean", "bad type " .. t .. " at " .. path)
   end
 end
-check(RambleonDB, "RambleonDB")
+check(WoWwrappedDB, "WoWwrappedDB")
 assertEq(#ns.failedEvents, 0, "no failed registrations in stub")
 
 -- One definition per event type: everything recorded is in EventTypes.lua, everything there was recorded here
 -- (a new type cannot ship without a line in this script), and no AddEvent call names a type it does not hold.
 do
   local emitted = {}
-  for _, s in ipairs(RambleonDB.sessions) do
+  for _, s in ipairs(WoWwrappedDB.sessions) do
     for _, ev in ipairs(s.events) do
       emitted[ev.type] = true
       assert(ns.EVENT_TYPES[ev.type], "event type missing from EventTypes.lua: " .. tostring(ev.type))
@@ -322,11 +322,11 @@ end
 -- Write the fixture. The companion's tests count on this evening (two sessions, six minutes):
 -- anything that needs more time, marks or sessions belongs below, after the fixture.
 local fixtureDir = here .. "/../../companion/tests/fixtures"
-local text = WoW.SerializeSavedVariables({ "RambleonDB" })
-local fh = assert(io.open(fixtureDir .. "/Rambleon_simulated.lua", "wb"))
+local text = WoW.SerializeSavedVariables({ "WoWwrappedDB" })
+local fh = assert(io.open(fixtureDir .. "/WoWwrapped_simulated.lua", "wb"))
 fh:write(text); fh:close()
 local summary = string.format("%d sessions, %d events in session 1, fixture written (%d bytes)",
-  #RambleonDB.sessions, #ended.events, #text)
+  #WoWwrappedDB.sessions, #ended.events, #text)
 
 -- After the fixture ---------------------------------------------------------------------------------
 
@@ -361,20 +361,20 @@ before = relog(function(s) s.lastSeen = ns.Now() - 601 end)
 assert(ns.session ~= before, "no resume after the ten-minute window")
 
 -- Only the last ten finished sessions stay in SavedVariables (the Mac owns history)
-for i = 1, 12 do table.insert(RambleonDB.sessions, 1, { id = "old-" .. i, state = "ended" }) end
+for i = 1, 12 do table.insert(WoWwrappedDB.sessions, 1, { id = "old-" .. i, state = "ended" }) end
 ns.PruneSessions()
 local kept, hasActive = 0, false
-for _, s in ipairs(RambleonDB.sessions) do
+for _, s in ipairs(WoWwrappedDB.sessions) do
   if s.state == "active" then hasActive = (s == ns.session) else kept = kept + 1 end
 end
 assertEq(kept, 10, "ten finished sessions kept"); assert(hasActive, "the active session survives pruning")
 
 -- Settings: defaults fill what is missing, what the player chose stays, debug survives a reload
-RambleonDB.settings = { autoScreenshots = false, somethingOld = "kept" }
+WoWwrappedDB.settings = { autoScreenshots = false, somethingOld = "kept" }
 ns.InitDB()
-assertEq(RambleonDB.settings.autoScreenshots, false, "a stored setting is kept")
-assertEq(RambleonDB.settings.debug, false, "a missing setting gets its default")
-assertEq(RambleonDB.settings.somethingOld, "kept", "unknown keys are left alone")
+assertEq(WoWwrappedDB.settings.autoScreenshots, false, "a stored setting is kept")
+assertEq(WoWwrappedDB.settings.debug, false, "a missing setting gets its default")
+assertEq(WoWwrappedDB.settings.somethingOld, "kept", "unknown keys are left alone")
 assertEq(ns.SetSetting("autoScreenshots", "yes"), false, "a value of the wrong type is refused")
 assertEq(ns.SetSetting("nonsense", true), nil, "an unknown setting is refused")
 ns.HandleSlash("debug on"); ns.InitDB()
@@ -382,26 +382,26 @@ assertEq(ns.debugEnabled, true, "debug survives a reload")
 ns.HandleSlash("debug off"); ns.SetAutoShots(true)
 assertEq(ns.debugEnabled, false, "debug off")
 
--- Migrations run once, in order, and never on data from a newer Rambleon
+-- Migrations run once, in order, and never on data from a newer WoWwrapped
 do
   local ran = 0
   ns.MIGRATIONS[2] = function(db) ran = ran + 1; db.migrated = true end
   ns.SCHEMA_VERSION = 2
   ns.InitDB()
-  assertEq(ran, 1, "migration ran"); assertEq(RambleonDB.schemaVersion, 2, "schema stamped")
+  assertEq(ran, 1, "migration ran"); assertEq(WoWwrappedDB.schemaVersion, 2, "schema stamped")
   ns.InitDB()
   assertEq(ran, 1, "migration does not run twice")
-  RambleonDB.schemaVersion = 99
+  WoWwrappedDB.schemaVersion = 99
   ns.InitDB()
-  assertEq(RambleonDB.schemaVersion, 99, "data from a newer Rambleon is left alone")
-  assert(ns.warnings[#ns.warnings]:find("newer Rambleon"), "and it is said")
+  assertEq(WoWwrappedDB.schemaVersion, 99, "data from a newer WoWwrapped is left alone")
+  assert(ns.warnings[#ns.warnings]:find("newer WoWwrapped"), "and it is said")
   ns.MIGRATIONS[2] = nil; ns.SCHEMA_VERSION = 1
-  RambleonDB.schemaVersion = 1; RambleonDB.migrated = nil
-  local sessions = RambleonDB.sessions
-  RambleonDB = nil
+  WoWwrappedDB.schemaVersion = 1; WoWwrappedDB.migrated = nil
+  local sessions = WoWwrappedDB.sessions
+  WoWwrappedDB = nil
   ns.InitDB()
-  assert(type(RambleonDB.sessions) == "table" and RambleonDB.settings.autoScreenshots == true, "a fresh table on a cold start")
-  RambleonDB.sessions = sessions
+  assert(type(WoWwrappedDB.sessions) == "table" and WoWwrappedDB.settings.autoScreenshots == true, "a fresh table on a cold start")
+  WoWwrappedDB.sessions = sessions
 end
 
 -- A type that is not in EventTypes.lua is still a memory: recorded, shown by its name, and said once
@@ -419,7 +419,7 @@ do
   ns.HandleSlash("help")
   local text = table.concat(WoW.chat, "\n")
   for _, c in ipairs(ns.COMMANDS) do
-    assert(text:find("/ramble" .. (c.name ~= "" and (" " .. c.name) or ""), 1, true), "help lists " .. c.name)
+    assert(text:find("/wrapped" .. (c.name ~= "" and (" " .. c.name) or ""), 1, true), "help lists " .. c.name)
     for _, alias in ipairs(c.aliases or {}) do assert(text:find(alias, 1, true), "help lists the alias " .. alias) end
   end
   WoW.chat = {}
@@ -444,7 +444,7 @@ do
   assert(button, "the panel has a MARK MOMENT button")
   WoW.chat = {}
   local before = countOfType("MARK")
-  Rambleon.Mark()
+  WoWwrapped.Mark()
   button:GetScript("OnClick")()
   local marks, lines = marksAndLines()
   assertEq(marks, before + 2, "keybinding and button each mark once")
@@ -455,16 +455,16 @@ end
 do
   ns.SetAutoShots(true)
   ns.UI.Get():Show()
-  RambleonPanel.picturesToggle:GetScript("OnClick")()
+  WoWwrappedPanel.picturesToggle:GetScript("OnClick")()
   assertEq(ns.AutoShotsEnabled(), false, "clicking Pictures turns automatic screenshots off")
-  assert(RambleonPanel.pictures:GetText():find("off", 1, true), "and the row says so")
-  RambleonPanel.picturesToggle:GetScript("OnClick")()
+  assert(WoWwrappedPanel.pictures:GetText():find("off", 1, true), "and the row says so")
+  WoWwrappedPanel.picturesToggle:GetScript("OnClick")()
   assertEq(ns.AutoShotsEnabled(), true, "and on again")
 end
 
 -- An event this client does not know is recorded, not fatal
 assertEq(ns.SafeRegister(ns.eventFrame, "BOGUS_EVENT"), false, "unknown event refused")
-assertEq(table.remove(ns.failedEvents), "BOGUS_EVENT", "and remembered for /ramble debug")
+assertEq(table.remove(ns.failedEvents), "BOGUS_EVENT", "and remembered for /wrapped debug")
 
 -- A long note is cut, not lost
 assertEq(#ns.AddNote(string.rep("a", 600)).text, 500, "note limit")

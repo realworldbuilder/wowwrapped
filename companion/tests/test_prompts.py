@@ -3,12 +3,12 @@ from pathlib import Path
 
 import pytest
 
-from rambleon import pages, prompts
-from rambleon.archive import Archive
-from rambleon.luaparse import parse, to_python
-from rambleon.normalize import sessions_from_db
-from rambleon.publish import export_html, write_html_index
-from rambleon.writer import available_voices, load_voice
+from wowwrapped import pages, prompts
+from wowwrapped.archive import Archive
+from wowwrapped.luaparse import parse, to_python
+from wowwrapped.normalize import sessions_from_db
+from wowwrapped.publish import export_html, write_html_index
+from wowwrapped.writer import available_voices, load_voice
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -16,12 +16,12 @@ FIXTURES = Path(__file__).parent / "fixtures"
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     home = tmp_path / "home"
-    monkeypatch.setenv("RAMBLEON_HOME", str(home))
+    monkeypatch.setenv("WOWWRAPPED_HOME", str(home))
     return home
 
 
 def session() -> dict:
-    return sessions_from_db(to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"])[0]
+    return sessions_from_db(to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"])[0]
 
 
 def test_bundled_voices():

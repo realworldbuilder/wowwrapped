@@ -1,5 +1,5 @@
--- Minimal WoW API stub for running Rambleon offline under Lua 5.x.
--- Not a faithful client: just enough to load the files, fire events and inspect RambleonDB.
+-- Minimal WoW API stub for running WoWwrapped offline under Lua 5.x.
+-- Not a faithful client: just enough to load the files, fire events and inspect WoWwrappedDB.
 local WoW = {}
 _G.WoW = WoW
 

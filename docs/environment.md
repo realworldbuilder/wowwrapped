@@ -34,7 +34,7 @@ Account identifiers are deliberately omitted; the companion discovers them at ru
 | WTF dir | `_classic_beta_/WTF/` |
 | Account-wide SavedVariables | `_classic_beta_/WTF/Account/<ACCOUNT>/SavedVariables/<AddOn>.lua` |
 | Per-character SavedVariables | `_classic_beta_/WTF/Account/<ACCOUNT>/70/Rambleon-Birdsong/SavedVariables/<AddOn>.lua` |
-| Realm folder | numeric **`70`** (General.log shows `sourceRealm="70-1-2"`). An older folder `Classic Beta PvE/Rambleon/` exists containing only `AddOns.txt`. |
+| Realm folder | numeric **`70`** (General.log shows `sourceRealm="70-1-2"`). An older folder `Classic Beta PvE/WoWwrapped/` exists containing only `AddOns.txt`. |
 | Character folder | `Rambleon-Birdsong` — first name + surname (Forever has surnames and no realms) |
 | Screenshots dir | `_classic_beta_/Screenshots/` — does **not** exist yet; WoW creates it on the first screenshot. Filenames are `WoWScrnShot_MMDDYY_HHMMSS.<jpg|png|tga>` in local time. |
 | Logs / Errors | `_classic_beta_/Logs/`, `_classic_beta_/Errors/` (three SIGTERM hang reports from 09-19) |
@@ -58,12 +58,12 @@ modern UI codebase despite the 1.60 version number.
   `%.16g`, strings escaped with `\"`, `\n`, `\ddd`; the `|` character is not escaped.
 - Flushes happen on logout, `/reload`, disconnect and quit. Not on crash.
 
-## Rambleon paths (derived)
+## WoWwrapped paths (derived)
 
 | Thing | Path |
 |---|---|
-| AddOn source | `<repo>/addon/Rambleon/` |
-| Installed AddOn | `_classic_beta_/Interface/AddOns/Rambleon` → symlink to the source |
-| Rambleon SavedVariables | `_classic_beta_/WTF/Account/*/*/*/SavedVariables/Rambleon.lua` (per-character) |
-| Archive | `<repo>/archive/` (override with `RAMBLEON_ARCHIVE_DIR`) |
-| WoW dir override | `RAMBLEON_WOW_DIR` (defaults to the Forever dir above) |
+| AddOn source | `<repo>/addon/WoWwrapped/` |
+| Installed AddOn | `_classic_beta_/Interface/AddOns/WoWwrapped` → symlink to the source |
+| WoWwrapped SavedVariables | `_classic_beta_/WTF/Account/*/*/*/SavedVariables/WoWwrapped.lua` (per-character) |
+| Archive | `<repo>/archive/` (override with `WOWWRAPPED_ARCHIVE_DIR`) |
+| WoW dir override | `WOWWRAPPED_WOW_DIR` (defaults to the Forever dir above) |

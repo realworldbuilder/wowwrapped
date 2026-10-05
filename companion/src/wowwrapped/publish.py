@@ -1,0 +1,303 @@
+"""A night as an HTML story page, and the index of every night."""
+from __future__ import annotations
+
+import html
+import shutil
+import subprocess
+from pathlib import Path
+from typing import Any
+
+from .archive import Archive, atomic_write_bytes
+from .export import (_by_zone, _collapse_carried, _collapse_titles, _quest_label, _times, carried_over, clock, describe, duration,
+                     export_filename, long_date, night_stats, place, quest_summary, render_recap)
+from .events import shown
+from .pages import PROJECT_URL, figure as _figure, index_anchor, page_name as _page_name, shell, top_nav
+from .nights import chapter_numbers, earlier_nights, nights
+from .screenshots import caption as shot_caption, event_index
+
+RESIZER = shutil.which("sips")   # macOS image tool; web copies are 1600 px JPEGs when it is present
+WEB_WIDTH = 1600
+HERO_REASONS = ("LEVEL_UP", "MARK")
+
+
+def chapter_title(session: dict[str, Any], number: int) -> str:
+    zones = session.get("zones", [])
+    where = zones[-1].get("subzone") or zones[-1].get("zone") if zones else None
+    return f"Chapter {number}" + (f" — {where}" if where else "")
+
+
+def character_line(c: dict[str, Any]) -> str:
+    """'Night Elf Hunter · Alliance · Level 19', from whatever was recorded about the character."""
+    who = f"{c.get('race') or ''} {c.get('class') or ''}".strip()
+    level = c.get("endLevel") or c.get("startLevel")
+    return " · ".join(x for x in (who, c.get("faction"), f"Level {level}" if level else "") if x)
+
+
+def _index_card(night: dict[str, Any], page: Path, number: int) -> str:
+    st = night_stats(night)
+    hero = pick_hero(prepare_images(night, page.with_suffix("")))
+    thumb = f"<img class='thumb' src='{html.escape(hero['src'])}' alt=''>" if hero else "<span class='noshot'></span>"
+    facts = [long_date(night.get("startedAt")), st["duration"], _count(st["quests"], "quest"),
+             _count(st["kills"], "kill"), _count(st["people"], "companion")]
+    title = chapter_title(night, number)
+    heading = title.split(" — ", 1)[1] if " — " in title else title
+    return (f"<li><a class='card' href='{html.escape(page.name)}'>{thumb}<span class='body'><span class='n'>Chapter {number}</span>"
+            f"<span class='t'>{html.escape(heading)}</span><span class='m'>{html.escape(' · '.join(facts))}</span></span></a></li>")
+
+
+def write_html_index(archive: Archive, exports_dir: Path, only: set[str] | None = None, out: Path | None = None) -> Path:
+    """exports/html/index.html: every night, newest first, linking to its story page (built if missing).
+
+    One character: the page is theirs. Several: a roster at the top, then a section per character (most recently
+    played first) with its own chapters, so two journals never read as one."""
+    groups: dict[str, dict[str, Any]] = {}   # slug → the character as of their latest night, and their cards
+    all_nights = nights(archive)
+    numbers = chapter_numbers(all_nights)
+    for night in reversed(all_nights):
+        page = exports_dir / "html" / export_filename(night).replace(".md", ".html")
+        if only is not None and page.name not in only:
+            continue
+        if not page.exists():
+            export_html(night, archive, exports_dir, all_nights=all_nights)
+        c = night.get("character", {})
+        group = groups.setdefault(c.get("slug") or "unknown", {"character": c, "latest": night.get("startedAt"), "cards": []})
+        group["cards"].append(_index_card(night, page, numbers[night["id"]]))
+    total = sum(len(g["cards"]) for g in groups.values())
+    chapters = lambda n: f"{n} chapter{'s' if n != 1 else ''}"
+    nav_links = [("About WoWwrapped", "../"), ("GitHub", PROJECT_URL)]
+    if len(groups) <= 1:
+        slug, group = next(iter(groups.items()), ("", {"character": {}, "cards": []}))
+        name = html.escape(group["character"].get("displayName", "") or "WoWwrapped")
+        title = f"{name} — Adventure Journal"
+        body = (f"<h1 id='{html.escape(slug)}'>{name}</h1><div class='meta'>Adventure journal · {chapters(total)} · newest first</div>"
+                "<ul class='chapters'>" + "".join(group["cards"]) + "</ul>")
+    else:
+        names = [html.escape(g["character"].get("displayName") or slug) for slug, g in groups.items()]
+        title = "Adventure Journal — " + ", ".join(names)
+        roster, sections = [], []
+        for (slug, group), name in zip(groups.items(), names):
+            c, n = group["character"], len(group["cards"])
+            line = html.escape(character_line(c))
+            roster.append(f"<a class='char' href='#{html.escape(slug)}'><span class='cn'>{name}</span>"
+                          + (f"<span class='cl'>{line}</span>" if line else "")
+                          + f"<span class='cm'>{chapters(n)} · last played {html.escape(long_date(group['latest']))}</span></a>")
+            meta = " · ".join(x for x in (line, chapters(n)) if x)
+            sections.append(f"<section class='who' id='{html.escape(slug)}'><h2>{name}</h2><div class='meta'>{meta}</div>"
+                            "<ul class='chapters'>" + "".join(group["cards"]) + "</ul></section>")
+        body = (f"<h1>Adventure Journal</h1><div class='meta'>{len(groups)} characters · {chapters(total)} · newest first</div>"
+                "<div class='roster'>" + "".join(roster) + "</div>" + "".join(sections))
+    doc = shell(title, top_nav(*nav_links), body, "Recorded by WoWwrapped")
+    out = out or exports_dir / "html" / "index.html"
+    atomic_write_bytes(out, doc.encode("utf-8"))
+    return out
+
+
+def _count(n: int, noun: str) -> str:
+    return f"{n} {noun}{'' if n == 1 else 's'}"
+
+
+# ---------------------------------------------------------------------------------------------------
+# HTML story page
+
+def neighbours(archive: Archive, session: dict[str, Any], siblings: set[str] | None = None,
+               own: list[dict[str, Any]] | None = None) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """(previous night, next night) around this one, skipping nights whose page is not in `siblings` when given.
+    `own`: this character's nights, when the caller has them already."""
+    if session.get("kind") != "night":
+        return None, None
+    ordered = own if own is not None else nights(archive, session.get("character", {}).get("slug"))
+    ids = [n["id"] for n in ordered]
+    if session["id"] not in ids:
+        return None, None
+    i = ids.index(session["id"])
+    def pick(seq):
+        for n in seq:
+            if siblings is None or _page_name(n) in siblings:
+                return n
+        return None
+    return pick(reversed(ordered[:i])), pick(ordered[i + 1:])
+
+
+def _pager(numbers: dict[str, int], prev_: dict[str, Any] | None, next_: dict[str, Any] | None, cls: str = "") -> str:
+    if not prev_ and not next_:
+        return ""
+    def link(n, arrow_left):
+        title = chapter_title(n, numbers[n["id"]])
+        text = f"← {title}" if arrow_left else f"{title} →"
+        return f"<a class='{'prev' if arrow_left else 'next'}' href='{html.escape(_page_name(n))}'>{html.escape(text)}</a>"
+    return (f"<div class='pager{' ' + cls if cls else ''}'>" + (link(prev_, True) if prev_ else "")
+            + (link(next_, False) if next_ else "") + "</div>")
+
+
+def _web_copy(src: Path, image_dir: Path, stem: str) -> Path | None:
+    """A browser-friendly, web-sized copy named after the page (never the WoW filename). Returns None if the
+    source is gone."""
+    if not src.exists():
+        return None
+    image_dir.mkdir(parents=True, exist_ok=True)
+    jpg = image_dir / f"{stem}.jpg"
+    fresh = jpg.exists() and jpg.stat().st_mtime >= src.stat().st_mtime
+    if fresh:
+        return jpg
+    if RESIZER:
+        r = subprocess.run([RESIZER, "-Z", str(WEB_WIDTH), "-s", "format", "jpeg", "-s", "formatOptions", "80",
+                            str(src), "--out", str(jpg)], capture_output=True, text=True)
+        if r.returncode == 0 and jpg.exists():
+            return jpg
+    if src.suffix.lower() not in (".jpg", ".jpeg", ".png"):
+        return None                      # a TGA the browser could not show anyway
+    plain = image_dir / f"{stem}{src.suffix.lower()}"
+    if not plain.exists() or plain.stat().st_mtime < src.stat().st_mtime:
+        shutil.copy2(src, plain)
+    return plain
+
+
+def prepare_images(session: dict[str, Any], image_dir: Path | None) -> list[dict[str, Any]]:
+    """Web copies of a session's screenshots next to its page: exports/html/<page>/<page>-NN.jpg."""
+    if image_dir is None:
+        return []
+    events = session.get("events", [])
+    out = []
+    shots = sorted(session.get("screenshots", []), key=lambda s: s.get("takenAt") or 0)
+    for n, shot in enumerate(shots, 1):
+        src = Path(shot.get("archived") or shot.get("path") or "")
+        copy = _web_copy(src, image_dir, f"{image_dir.name}-{n:02d}") if src.name else None
+        if copy is None:
+            continue
+        out.append({"src": f"{image_dir.name}/{copy.name}", "caption": shot.get("caption") or shot_caption(shot, events),
+                    "eventIndex": event_index(shot), "reason": shot.get("reason"), "takenAt": shot.get("takenAt")})
+    return out
+
+
+def pick_hero(images: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for reason in HERO_REASONS:
+        for img in images:
+            if img.get("reason") == reason:
+                return img
+    return images[0] if images else None
+
+
+QUESTS_SCRIPT = ("<script>(function(){var tabs=document.querySelectorAll('.quests [role=tab]');tabs.forEach(function(t){"
+                 "t.addEventListener('click',function(){tabs.forEach(function(o){o.setAttribute('aria-selected',o===t)});"
+                 "document.querySelectorAll('.quests .pane').forEach(function(p){p.classList.toggle('on',p.id==='qpane-'+t.dataset.pane)})})})})();</script>")
+
+
+def _cells(*cells: tuple[str, str | None]) -> str:
+    return "".join(f"<td class='{cls}'>{html.escape(text or '')}</td>" for cls, text in cells)
+
+
+def _quest_table(head: list[str], rows: list[str]) -> str:
+    return ("<table><thead><tr>" + "".join(f"<th>{html.escape(h)}</th>" for h in head) + "</tr></thead><tbody>"
+            + "".join(rows) + "</tbody></table>")
+
+
+def _quests_section(session: dict[str, Any], carried: list[tuple[dict[str, Any], int]] | None) -> str:
+    """The night's quests for a friend playing alongside, as a tabbed panel in the landing page's style:
+    turned in (by zone, with the spot and level), picked up but still open, and what is still carried from
+    earlier chapters. Empty string when the night had no quests."""
+    q = quest_summary(session)
+    carried = carried or []
+    panes: list[tuple[str, str, int, str]] = []       # (key, label, count, table html)
+    if q["completed"]:
+        rows = []
+        for zone, evs in _by_zone(q["completed"]):
+            rows.append(f"<tr class='zone'><th colspan='3'>{html.escape(zone)}</th></tr>")
+            for ev, n in _collapse_titles(evs):
+                rows.append("<tr>" + _cells(("quest", _quest_label(ev) + _times(n)), ("where", ev.get("subzone")),
+                                            ("lv", str(ev["level"]) if ev.get("level") else None)) + "</tr>")
+        panes.append(("done", "Turned in", len(q["completed"]), _quest_table(["Quest", "Turned in at", "Lv"], rows)))
+    if q["open"]:
+        rows = ["<tr>" + _cells(("quest", _quest_label(ev) + _times(n)), ("where", place(ev))) + "</tr>"
+                for ev, n in _collapse_titles(q["open"])]
+        panes.append(("open", "Still open", len(q["open"]), _quest_table(["Quest", "Picked up at"], rows)))
+    if carried:
+        rows = ["<tr>" + _cells(("quest", _quest_label(ev) + _times(n)), ("where", place(ev)), ("since", f"Chapter {k}")) + "</tr>"
+                for ev, n, k in _collapse_carried(carried)]
+        panes.append(("carried", "Carrying", len(carried), _quest_table(["Quest", "Picked up at", "Since"], rows)
+                      + "<p class='caveat'>As far as WoWwrapped knows: a quest picked up before it was installed, or abandoned before it recorded that, is not here.</p>"))
+    if not panes:
+        return ""
+    tabs = "".join(f"<button role='tab' aria-selected='{'true' if i == 0 else 'false'}' data-pane='{key}'>{label}<span class='n'>{n}</span></button>"
+                   for i, (key, label, n, _) in enumerate(panes))
+    body = "".join(f"<div class='pane{' on' if i == 0 else ''}' id='qpane-{key}' role='tabpanel'>{table}</div>"
+                   for i, (key, _, _, table) in enumerate(panes))
+    return (f"<h2 id='quests'>Quests</h2><div class='quests'><div class='tabs' role='tablist'>{tabs}</div>{body}</div>"
+            + QUESTS_SCRIPT)
+
+
+def render_html(session: dict[str, Any], number: int, image_dir: Path | None, pager: str = "", pager_bottom: str = "",
+                carried: list[tuple[dict[str, Any], int]] | None = None) -> str:
+    """`carried`: carried_over() output, quests still open from earlier chapters."""
+    c = session.get("character", {})
+    title = chapter_title(session, number)
+    name = c.get("displayName", "Unknown")
+    notes = [ev for ev in session.get("events", []) if ev.get("type") == "NOTE"]
+    quests = _quests_section(session, carried)
+    jumps = ([("Recap", "#recap")] + ([("Quests", "#quests")] if quests else [])
+             + [("Journey", "#journey")] + ([("Notes", "#notes")] if notes else []))
+    nav = top_nav(("All chapters", index_anchor(c.get("slug", ""))), ("About WoWwrapped", "../"))
+    parts = [f"<h1>{html.escape(title)}</h1>",
+             f"<div class='meta'>{html.escape(name)} · {html.escape(long_date(session.get('startedAt')))} · {html.escape(duration(session.get('playedSeconds')))} in Azeroth</div>",
+             "<div class='jump'>" + "".join(f"<a href='{h}'>{t}</a>" for t, h in jumps) + "</div>",
+             pager]
+    images = prepare_images(session, image_dir)
+    hero = pick_hero(images)
+    if hero:
+        parts.append(_figure(hero, "hero"))
+    recap = render_recap(session)
+    parts.append("<div class='recap' id='recap'>" + html.escape(recap.strip()) + "</div>")
+    st = night_stats(session)
+    stats = [("Quests", st["quests"]), ("Places", st["places"]), ("Enemies slain", st["kills"]), ("Loot", st["loot"]),
+             ("Deaths", st["deaths"]), ("People", st["people"]), ("XP", f"{st['xp']:,}")]
+    parts.append("<div class='stats'>" + "".join(f"<div class='stat'><b>{html.escape(str(v))}</b><span>{html.escape(k)}</span></div>" for k, v in stats) + "</div>")
+    parts.append(quests)
+    # Pictures sit on the timeline at their moment; the hero is not repeated.
+    by_event: dict[int, list[dict[str, Any]]] = {}
+    loose: list[dict[str, Any]] = []
+    for img in images:
+        if img is hero:
+            continue
+        if img.get("eventIndex") is None:
+            loose.append(img)
+        else:
+            by_event.setdefault(img["eventIndex"], []).append(img)
+    pictured = {i for i in by_event} | ({hero["eventIndex"]} if hero and hero.get("eventIndex") is not None else set())
+    moments = [ev for ev in session.get("events", []) if shown(ev)]
+    parts.append(f"<h2 id='journey'>The Journey</h2><details class='journey' open><summary>{len(moments)} moments, in order · fold</summary><ul>")
+    for i, ev in enumerate(session.get("events", [])):
+        if not shown(ev):
+            continue
+        if not (ev.get("type") == "SCREENSHOT" and i in pictured):   # the picture itself stands for the event
+            parts.append(f"<li>{html.escape(clock(ev.get('t')))} — {html.escape(describe(ev))}</li>")
+        for img in by_event.get(i, []):
+            parts.append("<li class='shot'>" + _figure(img) + "</li>")
+    for img in loose:
+        parts.append("<li class='shot'>" + _figure(img) + "</li>")
+    parts.append("</ul></details><a class='totop' href='#top'>↑ Back to top</a>")
+    if notes:
+        parts.append("<h2 id='notes'>Notes</h2><ul>" + "".join(f"<li>{html.escape(str(ev.get('text')))}</li>" for ev in notes) + "</ul>")
+    parts.append(pager_bottom)
+    return shell(f"{html.escape(title)} — {html.escape(name)}", nav, "\n".join(p for p in parts if p),
+                 f"Recorded by WoWwrapped · session {html.escape(session.get('id', ''))}", body_attrs=" id='top'")
+
+
+def export_html(session: dict[str, Any], archive: Archive, exports_dir: Path, siblings: set[str] | None = None,
+                all_nights: list[dict[str, Any]] | None = None) -> Path:
+    """Write the story page. `siblings` limits previous/next links to pages that will sit next to it (e.g. the shared set).
+    `all_nights`: nights() output when the caller has it, so writing many pages reads the archive once."""
+    slug = session.get("character", {}).get("slug")
+    if session.get("kind") == "night":
+        own = [n for n in all_nights if n.get("character", {}).get("slug") == slug] if all_nights is not None else nights(archive, slug)
+        numbers = chapter_numbers(own)
+        started = session.get("startedAt") or 0
+        prior = [n for n in own if (n.get("startedAt") or 0) < started and n.get("id") != session.get("id")]   # earlier_nights()
+        number = len(prior) + 1
+    else:
+        own, numbers, prior, number = [], {}, earlier_nights(archive, session), archive.chapter_number(session)
+    out = exports_dir / "html" / _page_name(session)
+    image_dir = out.with_suffix("")  # exports/html/<date>-<slug>/  next to the page
+    prev_, next_ = neighbours(archive, session, siblings, own)
+    page = render_html(session, number, image_dir, pager=_pager(numbers, prev_, next_),
+                       pager_bottom=_pager(numbers, prev_, next_, "bottom"), carried=carried_over(prior, session))
+    atomic_write_bytes(out, page.encode("utf-8"))
+    return out

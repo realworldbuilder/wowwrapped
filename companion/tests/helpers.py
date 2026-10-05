@@ -3,10 +3,10 @@ import copy
 import time
 from pathlib import Path
 
-from rambleon.archive import Archive
-from rambleon.luaparse import parse, to_python
-from rambleon.nights import nights
-from rambleon.normalize import sessions_from_db
+from wowwrapped.archive import Archive
+from wowwrapped.luaparse import parse, to_python
+from wowwrapped.nights import nights
+from wowwrapped.normalize import sessions_from_db
 
 FIXTURES = Path(__file__).parent / "fixtures"
 DAY = 86400
@@ -35,7 +35,7 @@ def _shifted(raw: dict, days: int, slug_suffix: str | None = None) -> dict:
 def three_nights(tmp_path):
     """Three nights of the fixture character a day apart, plus an earlier night of another character."""
     archive = Archive(tmp_path / "archive")
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     raw = db["sessions"][0]
     raws = [_shifted(raw, 0), _shifted(raw, 1), _shifted(raw, 2), _shifted(raw, -1, "Other")]
     cap = {"capturedAt": int(time.time()), "rawSnapshot": "x", "sourceHash": "h"}

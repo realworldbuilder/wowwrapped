@@ -1,14 +1,14 @@
 # Data model
 
-## 1. What the AddOn writes (`RambleonDB`, schemaVersion 1)
+## 1. What the AddOn writes (`WoWwrappedDB`, schemaVersion 1)
 
-`## SavedVariablesPerCharacter: RambleonDB`, so WoW writes
-`WTF/Account/<ACCOUNT>/<realm folder>/<Character-Name>/SavedVariables/Rambleon.lua`.
+`## SavedVariablesPerCharacter: WoWwrappedDB`, so WoW writes
+`WTF/Account/<ACCOUNT>/<realm folder>/<Character-Name>/SavedVariables/WoWwrapped.lua`.
 
 Only strings, numbers, booleans and tables are ever stored (`ns.Clean` enforces this and refuses secret values).
 
 ```lua
-RambleonDB = {
+WoWwrappedDB = {
   schemaVersion = 1,
   addonVersion = "0.4.0",
   settings = { autoScreenshots = true, debug = false, welcomed = false },   -- defaults in Session.lua; see below
@@ -20,7 +20,7 @@ RambleonDB = {
       startedAt = 1790000000,      -- epoch seconds, time()
       startedServerTime = ...,     -- GetServerTime(), for cross-checking clocks
       lastSeen = ...,              -- bumped every event and every 30 s heartbeat
-      endedAt = ..., endReason = "save" | ...,       -- "save" from /ramble save; older sessions say "end_chapter"
+      endedAt = ..., endReason = "save" | ...,       -- "save" from /wrapped save; older sessions say "end_chapter"
       playedSeconds = 8040,
       resumes = 0,
       character = { name, fullName, realmFromFullName, realm, normalizedRealm, race, raceFile, class, classFile,
@@ -40,8 +40,8 @@ RambleonDB = {
 
 ### Event types
 
-The list itself is code: `addon/Rambleon/EventTypes.lua` (how each reads in game, which counter it bumps) and its
-twin `companion/src/rambleon/events.py` (how the companion's outputs treat it). Tests keep the two and this table's
+The list itself is code: `addon/WoWwrapped/EventTypes.lua` (how each reads in game, which counter it bumps) and its
+twin `companion/src/wowwrapped/events.py` (how the companion's outputs treat it). Tests keep the two and this table's
 types in step; `docs/extending.md` shows how to add one.
 
 | type | fields |
@@ -65,26 +65,26 @@ types in step; `docs/extending.md` shows how to add one.
 
 Every event also carries `level`, and `zone`/`subzone` unless it is a zone event itself.
 
-`RambleonDB.settings`: `autoScreenshots` (`/ramble shots on|off`, or the Pictures row on the panel), `debug`
-(`/ramble debug on|off`), `welcomed` (the first-run note has been shown). Missing keys get their defaults at load;
+`WoWwrappedDB.settings`: `autoScreenshots` (`/wrapped shots on|off`, or the Pictures row on the panel), `debug`
+(`/wrapped debug on|off`), `welcomed` (the first-run note has been shown). Missing keys get their defaults at load;
 keys the AddOn does not know are left alone. The companion never reads settings.
 
-**Versions.** `schemaVersion` (1) is the shape of `RambleonDB`. Adding an event type, an event field, a counter or a
+**Versions.** `schemaVersion` (1) is the shape of `WoWwrappedDB`. Adding an event type, an event field, a counter or a
 setting does not change it: both sides ignore what they do not know. Bump it only when existing data must be
 rewritten to be read, and add the rewrite to `ns.MIGRATIONS[n]` in `Session.lua` (run once at load, oldest first;
-data from a newer Rambleon is left untouched). `normalizedVersion` (3) is the companion's own: bump it in `model.py`
-when normalization changes what an old raw snapshot turns into, so `ramble reprocess` is worth running.
+data from a newer WoWwrapped is left untouched). `normalizedVersion` (3) is the companion's own: bump it in `model.py`
+when normalization changes what an old raw snapshot turns into, so `wrapped reprocess` is worth running.
 
 ### States
 
 - `active` while playing. `PLAYER_LOGOUT` (logout and `/reload`) turns it into `suspended`.
-- `/ramble save` (the save popup) turns it into `ended`. Recording anything afterwards starts a new session automatically.
+- `/wrapped save` (the save popup) turns it into `ended`. Recording anything afterwards starts a new session automatically.
 - On load, a `suspended` session for the same character (by GUID; by name for sessions without one) seen
   < 10 minutes ago is resumed (`RESUMED` event).
 
 ## 2. The Lua subset the companion parses
 
-`companion/src/rambleon/luaparse.py` is a hand-written tokenizer + recursive-descent parser. It never executes Lua.
+`companion/src/wowwrapped/luaparse.py` is a hand-written tokenizer + recursive-descent parser. It never executes Lua.
 It accepts what Blizzard's serializer emits (observed on this machine, see `environment.md`) plus a little slack:
 
 - `Name = value` assignments at top level, repeated; `nil` allowed as a top-level value.
@@ -116,8 +116,8 @@ It accepts what Blizzard's serializer emits (observed on this machine, see `envi
   "screenshots": [ { "path": "...", "file": "WoWScrnShot_092126_201547.jpg", "takenAt": 1790000500, "archived": "archive/screenshots/<session>/WoWScrnShot_092126_201547.jpg",
                      "eventIndex": 4, "eventSeconds": 1, "reason": "LEVEL_UP", "auto": true, "level": 9, "zone": "Teldrassil", "subzone": "Dolanaar",
                      "caption": "Reached Level 9 in Dolanaar" } ],
-  "archive": { "capturedAt": 1790008100, "rawSnapshot": "sessions/raw/2026-09-22T031500Z_ab12cd34_Rambleon.lua",
-               "sourceHash": "...", "sourceFile": ".../WTF/Account/<ACCOUNT>/70/Rambleon-Birdsong/SavedVariables/Rambleon.lua",
+  "archive": { "capturedAt": 1790008100, "rawSnapshot": "sessions/raw/2026-09-22T031500Z_ab12cd34_WoWwrapped.lua",
+               "sourceHash": "...", "sourceFile": ".../WTF/Account/<ACCOUNT>/70/Rambleon-Birdsong/SavedVariables/WoWwrapped.lua",
                "firstCapturedAt": 1790008100, "revision": 1 }
 }
 ```
@@ -130,38 +130,38 @@ Normalization rules:
 - A session without an id, start time, character or event list is skipped.
 - Screenshots (`screenshots.py`): a file is matched to the `SCREENSHOT` event within 5 s of its mtime (one file per event)
   and inherits its `reason`; otherwise `eventIndex` is the nearest ordinary event and the caption is "Screenshot in <place>".
-  Pairing runs at capture, at finalization (late files), on `ramble page`/`share`, and again over the merged night.
-  Entries written before 0.3 carry `nearestEventIndex` instead; `ramble reprocess` rewrites them.
+  Pairing runs at capture, at finalization (late files), on `wrapped page`/`share`, and again over the merged night.
+  Entries written before 0.3 carry `nearestEventIndex` instead; `wrapped reprocess` rewrites them.
 
 ## 4. Archive rules (`archive/`)
 
 ```
 archive/
-  sessions/raw/            <utc stamp>_<hash8>_Rambleon.lua   exact bytes WoW wrote; never modified
+  sessions/raw/            <utc stamp>_<hash8>_WoWwrapped.lua   exact bytes WoW wrote; never modified
   sessions/raw/hashes.json hash → raw file (dedupe)
   sessions/raw/failed/     files that would not parse, with a .reason.txt beside each
   sessions/normalized/     one JSON per session id
   sessions/normalized/history/  previous versions of any normalized file that was replaced
   screenshots/<session>/   copies of the night's screenshots (default; `--no-copy-screenshots` keeps references only)
   index.json               rebuilt after every change
-  posts/x.json             what `ramble post` sent to X: night id → { v, postedAt, style, ids, texts, image, partial? }
-  watch.pid                present while `ramble watch` runs
+  posts/x.json             what `wrapped post` sent to X: night id → { v, postedAt, style, ids, texts, image, partial? }
+  watch.pid                present while `wrapped watch` runs
 ```
 
 - Raw snapshot first, always. Parsing happens after the bytes are safe.
 - A normalized session is replaced only by a copy with **at least as many events** that is not a state downgrade
   (`ended` beats `suspended`). Fewer events → rejected and logged. Never deleted, never shrunk.
-- A file whose `RambleonDB` has no sessions (the beta bug, or a fresh character) touches nothing.
+- A file whose `WoWwrappedDB` has no sessions (the beta bug, or a fresh character) touches nothing.
 - Atomic writes everywhere (`tmp` + `os.replace`).
 
 ## 5. Exports (`exports/`)
 
-- `markdown/<date>-<slug>.md` — factual log (`ramble export`).
-- `prompts/<date>-<slug>-prompt.md` — AI-neutral prompt with rules + evidence (`ramble summarize`).
+- `markdown/<date>-<slug>.md` — factual log (`wrapped export`).
+- `prompts/<date>-<slug>-prompt.md` — AI-neutral prompt with rules + evidence (`wrapped summarize`).
 - `markdown/<date>-<slug>-journal.md` and `social/<date>-<slug>-recap.txt` — when the Claude CLI wrote the chapter.
-- `social/<date>-<slug>-catchup.txt` — plain-text quest list for a friend (`ramble catchup`).
+- `social/<date>-<slug>-catchup.txt` — plain-text quest list for a friend (`wrapped catchup`).
 - `markdown/guide-<slug>.md`, `prompts/guide-<slug>-<mode>-prompt.md`, `html/guide-<slug>.html` — the route guide
-  (`ramble guide`): every night of one character cut into zone stretches. `guide/<slug>-<mode>.json` is its sidecar:
+  (`wrapped guide`): every night of one character cut into zone stretches. `guide/<slug>-<mode>.json` is its sidecar:
   `formatVersion, slug, displayName, title, mode, nights (ids the prose covers), chapters, prose, model, voice, createdAt`;
   `markdown/guide-<slug>-<mode>-prose.md` the same prose as a file. A mode other than the configured default writes
   `html/guide-<slug>-<mode>.html` beside the linked page.
@@ -173,21 +173,21 @@ archive/
 
 - `finished/<night id>.json` — the marker `pipeline.py` writes when every step has run over a night:
   `formatVersion, nightId, endedAt, events (how many the night held), finishedAt, steps (name → ok | skipped: … | failed: …)`.
-  A night with no marker, or one that has grown since, is what a restarted watcher finishes (`ramble status` lists
+  A night with no marker, or one that has grown since, is what a restarted watcher finishes (`wrapped status` lists
   them). Nights finished before markers existed count when their journal sidecar, or else their story page, is newer
   than the night's last minute.
 - `html/` — story pages, `index.html`, `guide-<slug>.html`, and an image folder per page.
 
-Files with a `formatVersion` (and X ledger entries with `v`, `Chapters.lua` with `RambleonChaptersMeta.format`) are
+Files with a `formatVersion` (and X ledger entries with `v`, `Chapters.lua` with `WoWwrappedChaptersMeta.format`) are
 at version 1; a file without the field is version 1 too.
 
 Generated artifacts are downstream of the archive and can always be regenerated. Raw history is never edited.
 
 ## 6. The player's own files (`<home>/`)
 
-`<home>` is `~/Rambleon` for a package install and the checkout when running from one (`RAMBLEON_HOME` overrides).
+`<home>` is `~/WoWwrapped` for a package install and the checkout when running from one (`WOWWRAPPED_HOME` overrides).
 
-- `rambleon.local.toml` — settings; every key optional. `ramble config` prints what is in effect and warns about
+- `wowwrapped.local.toml` — settings; every key optional. `wrapped config` prints what is in effect and warns about
   keys it does not know. Sections: `[share] auto`; `[x] auto, style, link, picture, lowercase, delay, characters`;
   `[guide] mode`; `[journal] voice, model`; `[characters."<slug>"]` (character fields to override, e.g. `gender`);
   `[people."<Name>"] note`.

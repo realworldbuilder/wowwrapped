@@ -1,4 +1,4 @@
-# Rambleon — plan to offer it to other players
+# WoWwrapped — plan to offer it to other players
 
 Updated 2026-10-04 (release 0.4.0), after two weeks of nightly use. "Productize" here means: a stranger who plays WoW: Forever on a
 Mac can install it in one sitting, never think about it again, and get a chapter they want to paste somewhere.
@@ -17,8 +17,8 @@ Free and open. Money, if ever, is a tip jar or a nicer Mac app later; never a ga
 
 ## Decisions (made 2026-09-22)
 
-1. **Name.** Rambleon: the character's name, and "ramble on".
-2. **Where it lives.** Public on GitHub: `realworldbuilder/rambleon`.
+1. **Name.** WoWwrapped: the character's name, and "wrapped on".
+2. **Where it lives.** Public on GitHub: `realworldbuilder/wowwrapped`.
 3. **License.** MIT.
 4. **Platform for the first offer.** Mac only, said plainly. The Python core stays portable; Windows is not planned yet.
 5. **AI stance.** The prompt file always; the Claude CLI when it is there. Never a hosted service that sees other
@@ -29,11 +29,11 @@ Free and open. Money, if ever, is a tip jar or a nicer Mac app later; never a ga
 Done when a friend with WoW Forever and a Mac installs it from the README and gets a chapter on night one with no
 help from us.
 
-- [x] **One-command setup.** `ramble setup`: doctor → install AddOn → install service → open the index page.
+- [x] **One-command setup.** `wrapped setup`: doctor → install AddOn → install service → open the index page.
       Detects a missing `claude` login and says exactly what to do.
 - [x] **Install without the repo.** AddOn as a versioned zip (GitHub release, later CurseForge/Wago). Companion via
-      `uv tool install` from the GitHub URL, or a Homebrew tap. `RAMBLEON_HOME` defaults to `~/Rambleon` for non-dev installs.
-- [x] **Self-healing.** `ramble doctor --fix`: recreate a deleted symlink (Battle.net updater), restart a stale
+      `uv tool install` from the GitHub URL, or a Homebrew tap. `WOWWRAPPED_HOME` defaults to `~/WoWwrapped` for non-dev installs.
+- [x] **Self-healing.** `wrapped doctor --fix`: recreate a deleted symlink (Battle.net updater), restart a stale
       service, rebuild the index. A watcher that was down or crashed finishes the nights it owes when it starts
       (0.4.0). Still open: the service restarting itself when the companion is upgraded.
 - [ ] **Multi-character, multi-flavor.** Already per-character on disk; make the CLI show and select characters, and
@@ -52,19 +52,19 @@ help from us.
 
 ## Phase B — Worth pasting unedited
 
-- [ ] **Rating loop.** `ramble rate tonight 👍|👎 "note"` stored next to the journal sidecar; a `ramble review` that
+- [ ] **Rating loop.** `wrapped rate tonight 👍|👎 "note"` stored next to the journal sidecar; a `wrapped review` that
       shows chapters and ratings side by side so the rules can be tuned on evidence.
 - [ ] **Evidence density.** Quest text at accept time (`C_QuestLog.GetQuestInfo`), zone/subzone first-visit flags,
       "first time in Darnassus" moments, time-of-day in the character's world.
 - [ ] **Voices.** Your own voices, guide modes, journal rules and page theme live in `<home>/prompts/` (0.4.0), and
       `[journal] voice` picks one for the watcher. Still open: a terse "captain's log" in the box, and
-      `ramble voices try tonight` to render every voice for comparison.
-- [x] **X.** `ramble post` and `[x] auto`: one post per night (title, the writer's one-line telling, hero picture) or
+      `wrapped voices try tonight` to render every voice for comparison.
+- [x] **X.** `wrapped post` and `[x] auto`: one post per night (title, the writer's one-line telling, hero picture) or
       the whole chapter as a thread. Built 2026-10-01; the live API refused the first try (the developer app was not enrolled in a project), so no
       post has gone out yet.
 - [ ] **Recap card.** A PNG share card (title, date, stats, one line) generated from the story page for socials.
 - [x] **Screenshots on the timeline** in the story page, captioned by the moment (auto shots at level ups, marks, new
-      zones; hero picture; `ramble share`). Done 2026-09-22; in use since 09-23.
+      zones; hero picture; `wrapped share`). Done 2026-09-22; in use since 09-23.
 - [x] **Chapter continuity.** The writer gets the last three chapters as one factual line each, the previous chapter's
       text, and each companion's history (familiar or new, first met when and where, hours before tonight), with a rule
       against re-narrating old nights. `memory.py`. Done 2026-09-26.
@@ -76,17 +76,17 @@ Each of these is a new output: one step in `pipeline.py` and a body inside `page
 
 - [ ] Character timeline page (level curve, nights, places, companions, deaths) from the index alone.
 - [ ] People page: first met, last seen, hours together, nights shared.
-- [x] **Route guide** (`ramble guide`): the nights cut into zone stretches with the level range reached there, one page
+- [x] **Route guide** (`wrapped guide`): the nights cut into zone stretches with the level range reached there, one page
       per character, facts always and prose per stretch from a *mode* prompt (`route` for another player, `season` for
       the player, or your own file). The season-grouping idea, done as the player's own path, never as advice. `guide.py`.
       Done 2026-09-26.
 - [ ] Weekly recap (a mode over the last seven nights, once the guide's stretches can be windowed).
 - [ ] Adventure map: `ZONE_ENTER` coordinates plotted on the client's own map images (no asset bundling).
-- [ ] `ramble ask "when did I first meet Tiamaat?"`: answers grounded in the archive.
+- [ ] `wrapped ask "when did I first meet Tiamaat?"`: answers grounded in the archive.
 
 ## Phase D — The Mac app (only if A–C hold up)
 
-A small menu-bar app wrapping `ramble`: status dot, last chapter, open tonight's page, open the journal folder,
+A small menu-bar app wrapping `wrapped`: status dot, last chapter, open tonight's page, open the journal folder,
 voice picker. Signed and notarised .dmg. This is where a "buy me a coffee" could live. The CLI stays free and complete.
 
 ## Non-negotiables
@@ -107,7 +107,7 @@ voice picker. Signed and notarised .dmg. This is where a "buy me a coffee" could
 
 - Splitting `Session.lua` (790 lines). The cut lines are clear (`Capture.lua` for kills, objectives and loot;
   `Screenshots.lua`), but it is a pure move whose only risk shows in game.
-- A Blizzard Settings panel category. `/ramble shots` and the Pictures row cover the one setting; the Settings API
+- A Blizzard Settings panel category. `/wrapped shots` and the Pictures row cover the one setting; the Settings API
   is unverified on Forever.
 - Localization (the AddOn's own text is English; chat parsing already uses the client's localized formats).
 - Other WoW flavours, Windows, plugin loading from third-party packages, the journal on its own branch.

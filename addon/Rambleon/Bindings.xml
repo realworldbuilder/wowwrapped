@@ -1,8 +1,0 @@
-<Bindings>
-  <Binding name="RAMBLEON_TOGGLE" category="ADDONS">
-    Rambleon.Toggle()
-  </Binding>
-  <Binding name="RAMBLEON_MARK" category="ADDONS">
-    Rambleon.Mark()
-  </Binding>
-</Bindings>

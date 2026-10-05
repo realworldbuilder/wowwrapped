@@ -2,18 +2,18 @@ import os
 import time
 from pathlib import Path
 
-from rambleon.archive import Archive
-from rambleon.luaparse import parse, to_python
-from rambleon.nights import build_night
-from rambleon.normalize import sessions_from_db
-from rambleon.paths import Paths
-from rambleon.screenshots import attach_screenshots, caption, pair_screenshots, refresh_session_screenshots
+from wowwrapped.archive import Archive
+from wowwrapped.luaparse import parse, to_python
+from wowwrapped.nights import build_night
+from wowwrapped.normalize import sessions_from_db
+from wowwrapped.paths import Paths
+from wowwrapped.screenshots import attach_screenshots, caption, pair_screenshots, refresh_session_screenshots
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def fixture_session():
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     return sessions_from_db(db)[0]
 
 

@@ -3,23 +3,23 @@ import os
 import time
 from pathlib import Path
 
-from rambleon import pipeline
-from rambleon.archive import Archive, atomic_write_json
-from rambleon.luaparse import parse, to_python
-from rambleon.nights import resolve_night
-from rambleon.normalize import sessions_from_db
-from rambleon.paths import Paths
-from rambleon.pipeline import NightContext, Step, finish_night, is_finished, marker_path, run_steps, unfinished
-from rambleon.watch import Finalizer
+from wowwrapped import pipeline
+from wowwrapped.archive import Archive, atomic_write_json
+from wowwrapped.luaparse import parse, to_python
+from wowwrapped.nights import resolve_night
+from wowwrapped.normalize import sessions_from_db
+from wowwrapped.paths import Paths
+from wowwrapped.pipeline import NightContext, Step, finish_night, is_finished, marker_path, run_steps, unfinished
+from wowwrapped.watch import Finalizer
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def archived(tmp_path: Path):
     paths = Paths(repo_root=tmp_path, wow_dir=tmp_path / "wow", archive_dir=tmp_path / "archive", exports_dir=tmp_path / "exports")
-    (tmp_path / "addon" / "Rambleon").mkdir(parents=True)
+    (tmp_path / "addon" / "WoWwrapped").mkdir(parents=True)
     archive = Archive(paths.archive_dir)
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     archive.upsert_session(sessions_from_db(db)[0], {"capturedAt": int(time.time()), "rawSnapshot": "x", "sourceHash": "h"})
     archive.rebuild_index()
     return archive, paths, resolve_night(archive, "latest")
@@ -69,7 +69,7 @@ def test_what_counts_as_finished(tmp_path):
     atomic_write_json(marker_path(paths.exports_dir, night["id"]), {"endedAt": ended, "events": len(night["events"]) - 1})
     assert not is_finished(paths.exports_dir, night)
     assert [n["id"] for n in unfinished(archive, paths.exports_dir, now=ended + 3600)] == [night["id"]]
-    assert unfinished(archive, paths.exports_dir, now=ended + 3 * 86400) == []     # old nights are left to `ramble finish`
+    assert unfinished(archive, paths.exports_dir, now=ended + 3 * 86400) == []     # old nights are left to `wrapped finish`
 
 
 def test_a_restarted_watcher_finishes_what_it_owes(tmp_path):

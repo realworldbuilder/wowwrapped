@@ -2,21 +2,21 @@
 import re
 from pathlib import Path
 
-from rambleon.archive import Archive
-from rambleon.events import EVENTS, describe, spec
-from rambleon.export import carried_over, quest_summary, render_markdown
-from rambleon.luaparse import parse, to_python
-from rambleon.model import COUNTER_KEYS, EVENT_TYPES
-from rambleon.nights import build_night
-from rambleon.normalize import sessions_from_db
-from rambleon.publish import export_html
+from wowwrapped.archive import Archive
+from wowwrapped.events import EVENTS, describe, spec
+from wowwrapped.export import carried_over, quest_summary, render_markdown
+from wowwrapped.luaparse import parse, to_python
+from wowwrapped.model import COUNTER_KEYS, EVENT_TYPES
+from wowwrapped.nights import build_night
+from wowwrapped.normalize import sessions_from_db
+from wowwrapped.publish import export_html
 
 FIXTURES = Path(__file__).parent / "fixtures"
-ADDON = Path(__file__).parents[2] / "addon" / "Rambleon"
+ADDON = Path(__file__).parents[2] / "addon" / "WoWwrapped"
 
 
 def fixture_sessions() -> list[dict]:
-    return sessions_from_db(to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"])
+    return sessions_from_db(to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"])
 
 
 def test_both_sides_know_the_same_types():

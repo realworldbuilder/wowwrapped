@@ -1,4 +1,4 @@
-# Extending Rambleon
+# Extending WoWwrapped
 
 Three things are built to be added to: what is remembered, what is made from a night, and how it is written.
 Each is one entry in one list. Before any of them, ask the question in `CLAUDE.md`:
@@ -9,8 +9,8 @@ evening as the companion's test fixture, and runs the companion's tests against 
 
 ## 1. A new thing to remember (an event type)
 
-An event type lives in two tables that must agree: `addon/Rambleon/EventTypes.lua` and
-`companion/src/rambleon/events.py`. The tests fail if one has a type the other lacks, if their counters differ, or if
+An event type lives in two tables that must agree: `addon/WoWwrapped/EventTypes.lua` and
+`companion/src/wowwrapped/events.py`. The tests fail if one has a type the other lacks, if their counters differ, or if
 the scripted evening never records it.
 
 Worked example: remembering that the player took a flight (`FLIGHT_TAKEN`).
@@ -25,7 +25,7 @@ Worked example: remembering that the player took a flight (`FLIGHT_TAKEN`).
    ```
 
 2. `Events.lua`: a handler for the game event that tells you. Registration is automatic and guarded (an event this
-   client does not know is skipped and listed under `/ramble debug`).
+   client does not know is skipped and listed under `/wrapped debug`).
 
    ```lua
    handlers.SOME_GAME_EVENT = function(destination)
@@ -64,13 +64,13 @@ That is a complete type: it is archived, shown in the log, on the page and in th
 A type the companion does not know yet is never dropped: it reads as its name in plain words. So an AddOn that is
 newer than the companion loses nothing.
 
-Adding a **new file** to `addon/Rambleon/` means listing it in both TOCs, in `companion/pyproject.toml`
+Adding a **new file** to `addon/WoWwrapped/` means listing it in both TOCs, in `companion/pyproject.toml`
 (`force-include`) and in `addon/tests/run.lua`; `tests/test_packaging.py` checks all four agree.
 
 ## 2. A new output (a pipeline step)
 
-What happens after a night is `STEPS` in `companion/src/rambleon/pipeline.py`. The watcher runs all of them;
-`ramble finish` does the same by hand. A step is a function of the `NightContext` that returns a line for the log:
+What happens after a night is `STEPS` in `companion/src/wowwrapped/pipeline.py`. The watcher runs all of them;
+`wrapped finish` does the same by hand. A step is a function of the `NightContext` that returns a line for the log:
 
 ```python
 def step_recap_card(ctx: NightContext) -> str:
@@ -85,33 +85,33 @@ STEPS = [..., Step("page", step_page), Step("recap_card", step_recap_card), Step
 - A step that raises is logged and recorded as failed; the steps after it still run.
 - `raise Skip("why")` when there is nothing to do.
 - `ctx.unattended` is true when the watcher is running it: nobody is there to ask. Anything that leaves the Mac
-  must be opted into in `rambleon.local.toml` when unattended, and asked for by hand otherwise (see `step_share`).
+  must be opted into in `wowwrapped.local.toml` when unattended, and asked for by hand otherwise (see `step_share`).
 - `needs_ai=True` marks a step that may call the Claude CLI. It must still do its non-AI part (write the prompt)
   when `ctx.use_ai` is false.
 
 A new HTML page is a body inside `pages.shell(...)`; the styles are `assets/page.css`.
 
 A new setting goes in `config.py`: a field on the section's dataclass and a rule in `SECTIONS`. Unknown keys and
-bad values are reported by `ramble config` and `ramble doctor` without any further code.
+bad values are reported by `wrapped config` and `wrapped doctor` without any further code.
 
 ## 3. A new way of writing (voices, guide modes, rules, theme)
 
-No code. Files in the player's own folder, `<home>/prompts/` (`~/Rambleon/prompts/` for a package install, the
-checkout otherwise; `ramble voices` prints the path):
+No code. Files in the player's own folder, `<home>/prompts/` (`~/WoWwrapped/prompts/` for a package install, the
+checkout otherwise; `wrapped voices` prints the path):
 
 | file | what it is | used by |
 |---|---|---|
 | `voices/<name>.md` | a voice: how the chapter should sound | `--voice <name>`, `[journal] voice = "<name>"` |
-| `guides/<name>.md` | a guide mode: what to write from the route's facts | `ramble guide --mode <name>`, `[guide] mode` |
+| `guides/<name>.md` | a guide mode: what to write from the route's facts | `wrapped guide --mode <name>`, `[guide] mode` |
 | `journal.md` | the rules every chapter is written by (replaces the bundled ones) | every chapter |
 | `theme.css` | CSS added after the page styles | every story page, index and guide |
 
 A file of yours with a bundled name wins. A path to a `.md` file works wherever a name does.
 
-Placeholders Rambleon fills in: `{voice}` and `{chapter}` in `journal.md`; `{voice}`, `{name}`, `{pronouns}`,
+Placeholders WoWwrapped fills in: `{voice}` and `{chapter}` in `journal.md`; `{voice}`, `{name}`, `{pronouns}`,
 `{startLevel}`, `{endLevel}` and `{nights}` in a guide mode. Any other `{word}` is sent to the writer as written,
 and pointed out when the prompt is built in case it was a typo.
 
-To ship a voice or mode with Rambleon, put the file in `companion/src/rambleon/prompts/voices/` or `guides/`.
+To ship a voice or mode with WoWwrapped, put the file in `companion/src/wowwrapped/prompts/voices/` or `guides/`.
 The honesty rules in `journal.md` (only what was recorded; names only from the evidence) are the product; a voice
 changes the sound, never the facts.

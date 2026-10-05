@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from rambleon.luaparse import LuaParseError, TornFile, parse, to_python
+from wowwrapped.luaparse import LuaParseError, TornFile, parse, to_python
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -29,8 +29,8 @@ def test_damage_meter_shape():
 
 
 def test_simulated_session_fixture():
-    result = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))
-    db = result["RambleonDB"]
+    result = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))
+    db = result["WoWwrappedDB"]
     assert db["schemaVersion"] == 1
     assert len(db["sessions"]) == 2
     first = db["sessions"][0]
@@ -41,7 +41,7 @@ def test_simulated_session_fixture():
 
 
 def test_torn_file_detected():
-    data = (FIXTURES / "Rambleon_simulated.lua").read_bytes()
+    data = (FIXTURES / "WoWwrapped_simulated.lua").read_bytes()
     # Cut at many offsets: every truncation must be reported as torn, never as a syntax error.
     for cut in range(200, len(data) - 1, 97):
         with pytest.raises(TornFile):

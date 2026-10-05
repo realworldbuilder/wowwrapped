@@ -5,7 +5,7 @@ import tomllib
 from pathlib import Path
 
 REPO = Path(__file__).parents[2]
-ADDON = REPO / "addon" / "Rambleon"
+ADDON = REPO / "addon" / "WoWwrapped"
 
 
 def toc_files(name: str) -> list[str]:
@@ -18,30 +18,30 @@ def toc_version(name: str) -> str:
 
 def test_addon_file_lists_agree():
     lua = {p.name for p in ADDON.glob("*.lua")}
-    camelot = toc_files("Rambleon_Camelot.toc")
+    camelot = toc_files("WoWwrapped_Camelot.toc")
     assert set(camelot) == lua
-    assert [f for f in camelot if f != "Forever.lua"] == toc_files("Rambleon.toc")     # same files, same order
+    assert [f for f in camelot if f != "Forever.lua"] == toc_files("WoWwrapped.toc")     # same files, same order
     project = tomllib.loads((REPO / "companion" / "pyproject.toml").read_text())
     shipped = {Path(src).name for src in project["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]}
-    assert shipped == lua | {"Rambleon.toc", "Rambleon_Camelot.toc", "Bindings.xml"}
+    assert shipped == lua | {"WoWwrapped.toc", "WoWwrapped_Camelot.toc", "Bindings.xml"}
     tested = re.search(r"local files = \{(.*?)\}", (REPO / "addon" / "tests" / "run.lua").read_text()).group(1)
     assert set(re.findall(r'"([^"]+)"', tested)) == lua
     assert "Bindings.xml" not in camelot                # loaded by name; listing it loads it twice
 
 
 def test_versions_agree():
-    from rambleon import __version__
+    from wowwrapped import __version__
     project = tomllib.loads((REPO / "companion" / "pyproject.toml").read_text())
-    assert project["project"]["version"] == __version__ == toc_version("Rambleon.toc") == toc_version("Rambleon_Camelot.toc")
+    assert project["project"]["version"] == __version__ == toc_version("WoWwrapped.toc") == toc_version("WoWwrapped_Camelot.toc")
 
 
 def test_a_release_is_announced_everywhere():
     """The version has a CHANGELOG heading, and every pinned install line installs that version."""
-    from rambleon import __version__
+    from wowwrapped import __version__
     assert re.search(rf"^## {re.escape(__version__)}\b", (REPO / "CHANGELOG.md").read_text(), re.M)
     pinned = []
     for doc in ("README.md", "companion/README.md", "docs/invite-prompt.md", "site/index.html"):
-        pins = re.findall(r"rambleon@v([0-9][0-9A-Za-z.]*)#subdirectory=companion", (REPO / doc).read_text())
+        pins = re.findall(r"wowwrapped@v([0-9][0-9A-Za-z.]*)#subdirectory=companion", (REPO / doc).read_text())
         assert pins, f"{doc} has no pinned install line"
         pinned += pins
     assert set(pinned) == {__version__}

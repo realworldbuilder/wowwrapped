@@ -1,18 +1,18 @@
 import time
 from pathlib import Path
 
-from rambleon.archive import Archive
-from rambleon.luaparse import parse, to_python
-from rambleon.nights import build_night, night_date, nights, resolve_night
-from rambleon.normalize import sessions_from_db
-from rambleon.export import render_markdown
-from rambleon.watch import Finalizer
+from wowwrapped.archive import Archive
+from wowwrapped.luaparse import parse, to_python
+from wowwrapped.nights import build_night, night_date, nights, resolve_night
+from wowwrapped.normalize import sessions_from_db
+from wowwrapped.export import render_markdown
+from wowwrapped.watch import Finalizer
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def two_sessions():
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     a = sessions_from_db(db)[0]
     b = dict(a, id=a["id"] + "-later", startedAt=a["startedAt"] + 3600, endedAt=a["endedAt"] + 3600,
              events=[dict(e, t=e["t"] + 3600) for e in a["events"]])
@@ -84,7 +84,7 @@ def test_finalizer_runs_at_logout():
 
 
 def test_wowstate_parses_client_log(tmp_path):
-    from rambleon.wowstate import last_client_events
+    from wowwrapped.wowstate import last_client_events
     (tmp_path / "Logs").mkdir()
     (tmp_path / "Logs" / "Client.log").write_text(
         "9/20 20:54:43.063  Character Login SEND\n9/20 20:59:32.762  Client Object Manager Destroyed\n")

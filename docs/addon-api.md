@@ -15,7 +15,7 @@ Researched 2026-09-21. Sources are listed at the end. Anything marked *verify in
 | Item | Value |
 |---|---|
 | `## Interface:` | `16001` |
-| Flavor TOC suffix | `Rambleon_Camelot.toc` (also matched by `_Mainline`); we ship a plain `Rambleon.toc` fallback too |
+| Flavor TOC suffix | `WoWwrapped_Camelot.toc` (also matched by `_Mainline`); we ship a plain `WoWwrapped.toc` fallback too |
 | `WOW_PROJECT_ID` | `1` (`WOW_PROJECT_MAINLINE`). There is **no** Forever constant. |
 | Our detection | `Forever.lua` is listed only in the Camelot TOC and sets `ns.flavorHint = "forever"`; `tocVersion == 16001` is the secondary hint |
 | Game mode | `C_GameRules.GetActiveGameMode()` exists but its numbering does not match `currentGameMode "15"` in Config.wtf. Not used. |
@@ -25,7 +25,7 @@ Researched 2026-09-21. Sources are listed at the end. Anything marked *verify in
 - `GetSpecialization*` do not exist. Legacy globals `GetItemInfo`, `GetSpellInfo`, `UnitAura` moved to `C_*` namespaces.
 - `COMBAT_LOG_EVENT` / `COMBAT_LOG_EVENT_UNFILTERED` error on registration. We never register them.
 - **`RegisterEvent` throws on unknown events.** Every registration in `Events.lua` goes through `ns.SafeRegister`
-  (pcall); failures are listed in `/ramble debug` and stored in the session as `failedEvents`.
+  (pcall); failures are listed in `/wrapped debug` and stored in the session as `failedEvents`.
 - Lua error reporting stops after 100 errors per session. Keep the addon error-free; `pcall` anything uncertain.
 - **Secret values (12.0):** unit health/power/auras/cooldowns/cast/threat and, in some encounter contexts, unit identity.
   Zone text, quest titles, level and map position are not restricted. `ns.Clean()` refuses secret values before
@@ -45,7 +45,7 @@ Forever has surnames and no realms, and **the client changed how it reports them
 | 70009 (from 2026-09-24) | `"Rambleon"` | `"Rambleon", "Birdsong"` | `"Classic Beta PvE"` | `"ClassicBetaPvE"` |
 
 `UnitGUID("player")` (`Player-4618-00BCBDC7`) stayed the same, so it is the identity. The WTF folder is still
-`70/Rambleon-Birdsong`. Rambleon stores the raw results of `UnitName`, `UnitFullName`, `GetRealmName` and
+`70/Rambleon-Birdsong`. WoWwrapped stores the raw results of `UnitName`, `UnitFullName`, `GetRealmName` and
 `GetNormalizedRealmName` unchanged and never splits on `-`. On top of them it derives `character.surname` and
 `character.displayName` with one rule, in `ns.CaptureCharacter` (AddOn) and `normalize.display_name` (companion):
 the second return of `UnitFullName` is a surname when it is non-empty, is not the realm in any spelling, and the
@@ -53,11 +53,11 @@ name has no space already; the display name is the name plus that surname. Every
 `"Rambleon Birdsong"`; mainline's `"Name", "Realm"` yields `"Name"`. `Chapters.lua` carries the GUID and the AddOn
 matches chapters by it (slug only as a fallback for old files). Group members are now first-name only.
 
-## Events Rambleon uses
+## Events WoWwrapped uses
 
 | Event | Used for | Notes |
 |---|---|---|
-| `ADDON_LOADED` | init `RambleonDB` | if nil (the beta bug), a fresh table is created; nothing is migrated |
+| `ADDON_LOADED` | init `WoWwrappedDB` | if nil (the beta bug), a fresh table is created; nothing is migrated |
 | `PLAYER_LOGIN` | one chat line | |
 | `PLAYER_ENTERING_WORLD` | start/resume the session, first zone, instance check, roster | |
 | `PLAYER_LOGOUT` | suspend the session | fires before SV are written, on logout and `/reload` |
@@ -68,24 +68,24 @@ matches chapters by it (slug only as a fallback for old files). Group members ar
 | `QUEST_REMOVED` | `QUEST_ABANDONED` | `(questID)`. Fires for a turn-in too, in an order the client does not promise, so the AddOn waits a second and records only a quest that was not turned in and whose title it already knew (hidden bookkeeping quests have none). **Unverified on Forever as of 2026-10-04** |
 | `HEARTHSTONE_BOUND` | `HEARTH_BOUND {name}` | name from `GetBindLocation()`. **Unverified on Forever as of 2026-10-04** |
 | `ENCOUNTER_END` | `BOSS_KILL {name, encounterID}` | `(encounterID, name, difficultyID, groupSize, success)`; only `success == 1`. Not the combat log. **Unverified on Forever as of 2026-10-04** |
-| `PLAYER_DEAD` / `PLAYER_UNGHOST` / `PLAYER_ALIVE` | `DEATH` / `REVIVED` | **build 70009 fires `PLAYER_DEAD` twice per death**, 1–4 s apart (every death from 09-24 to 10-01 was recorded twice; 09-22 and the second character were not). The AddOn ignores a repeat within 30 s and skips `UnitIsFeignDeath`; `normalize.drop_death_echoes` does the same for old recordings (`ramble reprocess`). Revival only logged if `UnitIsDeadOrGhost` is false |
-| `CHAT_MSG_LOOT` | `LOOT` (uncommon+) | the item link in the line uses the 12.x **named colour** `|cnIQ2:|Hitem:…`, not `|cff1eff00`; the parser read only the hex form until 0.3.1, which is why no night before 10-02 has loot. `/ramble debug` now shows `loot: N chat lines, M read, K kept` and the last line it could not read |
+| `PLAYER_DEAD` / `PLAYER_UNGHOST` / `PLAYER_ALIVE` | `DEATH` / `REVIVED` | **build 70009 fires `PLAYER_DEAD` twice per death**, 1–4 s apart (every death from 09-24 to 10-01 was recorded twice; 09-22 and the second character were not). The AddOn ignores a repeat within 30 s and skips `UnitIsFeignDeath`; `normalize.drop_death_echoes` does the same for old recordings (`wrapped reprocess`). Revival only logged if `UnitIsDeadOrGhost` is false |
+| `CHAT_MSG_LOOT` | `LOOT` (uncommon+) | the item link in the line uses the 12.x **named colour** `|cnIQ2:|Hitem:…`, not `|cff1eff00`; the parser read only the hex form until 0.3.1, which is why no night before 10-02 has loot. `/wrapped debug` now shows `loot: N chat lines, M read, K kept` and the last line it could not read |
 | `GROUP_ROSTER_UPDATE` | `GROUP_JOIN` / `GROUP_LEAVE`, people table | roster diff, names guarded against secret values, time together accumulated on heartbeat |
 | `UPDATE_INSTANCE_INFO`, `PLAYER_ENTERING_WORLD` | `INSTANCE_ENTER` / `INSTANCE_EXIT {name}` | via `IsInInstance()` transitions. Until 0.4.0 every loading screen reset the remembered state, so the exit (which is a loading screen) was never recorded: 18 enters, 0 exits in the archive |
 | `ACHIEVEMENT_EARNED` | `ACHIEVEMENT` | pcall-registered; may not exist |
 | `SCREENSHOT_SUCCEEDED` | `SCREENSHOT {reason, auto, level, zone, subzone}` | no payload; the companion pairs the file by time. `reason` is `LEVEL_UP`, `MARK`, `ZONE_ENTER` when the AddOn took the picture (`auto = true`), else `MANUAL` |
-| `SCREENSHOT_FAILED` | — | clears the pending reason; `/ramble debug` shows `last: failed` |
+| `SCREENSHOT_FAILED` | — | clears the pending reason; `/wrapped debug` shows `last: failed` |
 
 Deliberately not recorded: chat content, anything from the combat log, protected or secret values.
 
 ### Automatic screenshots (0.3.0; working on Forever, pictures paired nightly since 2026-09-23)
 
 The AddOn calls the global `Screenshot()` (retail API; other addons use it for level-up shots) from `ns.TakeScreenshot`
-in `Session.lua`: one second after `PLAYER_LEVEL_UP` (the glow), 0.2 s after `/ramble mark`, and one second after the
+in `Session.lua`: one second after `PLAYER_LEVEL_UP` (the glow), 0.2 s after `/wrapped mark`, and one second after the
 `ZONE_ENTER` for the first visit to a new main zone tonight. Guards: `type(Screenshot) == "function"`, `pcall`, a 3 s
-rate limit, `RambleonDB.settings.autoScreenshots` (`/ramble shots on|off`). The reason is parked in `ns.pendingShot`
+rate limit, `WoWwrappedDB.settings.autoScreenshots` (`/wrapped shots on|off`). The reason is parked in `ns.pendingShot`
 and consumed by `SCREENSHOT_SUCCEEDED` (15 s TTL), so a manual screenshot in between would inherit it (rare, accepted).
-Rambleon's own panel and chapters reader are hidden for the picture and shown again after; the game's UI is not touched. Files land in `<WoW>/Screenshots/WoWScrnShot_MMDDYY_HHMMSS.<jpg|tga|png>` per the
+WoWwrapped's own panel and chapters reader are hidden for the picture and shown again after; the game's UI is not touched. Files land in `<WoW>/Screenshots/WoWScrnShot_MMDDYY_HHMMSS.<jpg|tga|png>` per the
 `screenshotFormat` CVar; the companion converts to JPEG for the web (sips) and can only *display* jpg/png.
 
 ## SavedVariables mechanics and the Forever beta bug

@@ -5,7 +5,7 @@ exports/*
 !exports/.gitkeep
 
 # Local overrides (WoW paths etc.)
-rambleon.local.toml
+wowwrapped.local.toml
 /prompts/
 .env
 

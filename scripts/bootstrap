@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time setup on a Mac: uv, the companion environment, and the global `ramble` command.
+# One-time setup on a Mac: uv, the companion environment, and the global `wrapped` command.
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -18,5 +18,5 @@ uv sync --group dev
 uv tool install --editable . --force
 uv tool update-shell >/dev/null 2>&1 || true
 echo
-echo "Done. If 'ramble' is not found in a new shell, add $(uv tool dir --bin 2>/dev/null || echo '~/.local/bin') to your PATH."
-echo "Next: ramble doctor"
+echo "Done. If 'wrapped' is not found in a new shell, add $(uv tool dir --bin 2>/dev/null || echo '~/.local/bin') to your PATH."
+echo "Next: wrapped doctor"

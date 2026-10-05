@@ -2,16 +2,16 @@ import json
 import time
 from pathlib import Path
 
-from rambleon.archive import Archive
-from rambleon.export import render_markdown
-from rambleon.luaparse import parse, to_python
-from rambleon.normalize import display_name, drop_death_echoes, normalize_session, sessions_from_db, surname
+from wowwrapped.archive import Archive
+from wowwrapped.export import render_markdown
+from wowwrapped.luaparse import parse, to_python
+from wowwrapped.normalize import display_name, drop_death_echoes, normalize_session, sessions_from_db, surname
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def load_sessions():
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     return sessions_from_db(db)
 
 
@@ -25,22 +25,22 @@ def test_normalize_sessions():
     assert [e["t"] for e in ended["events"]] == sorted(e["t"] for e in ended["events"])
     assert ended["id"] != suspended["id"]
     # seen a few seconds ago (pinned clock) → still resumable
-    from rambleon.normalize import normalize_session
-    raw = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]["sessions"][1]
+    from wowwrapped.normalize import normalize_session
+    raw = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]["sessions"][1]
     fresh = normalize_session(raw, now=raw["lastSeen"] + 10)
     assert fresh["state"] == "suspended" and fresh["addonState"] == "suspended"
 
 
 def test_stale_suspended_session_becomes_ended():
-    from rambleon.normalize import normalize_session
-    db = to_python(parse((FIXTURES / "Rambleon_simulated.lua").read_bytes()))["RambleonDB"]
+    from wowwrapped.normalize import normalize_session
+    db = to_python(parse((FIXTURES / "WoWwrapped_simulated.lua").read_bytes()))["WoWwrappedDB"]
     raw = db["sessions"][1]
     s = normalize_session(raw, now=raw["lastSeen"] + 3600)
     assert s["state"] == "ended" and s["endReason"] == "logout" and s["endedAt"] == raw["lastSeen"]
 
 
 def test_end_level_derived_from_events():
-    from rambleon.normalize import normalize_session
+    from wowwrapped.normalize import normalize_session
     raw = {"id": "x", "state": "ended", "startedAt": 1, "lastSeen": 2, "endedAt": 2,
            "character": {"name": "A", "startLevel": 8, "endLevel": 8},
            "events": [{"t": 1, "type": "SESSION_START", "level": 8}, {"t": 2, "type": "LEVEL_UP", "level": 9},
@@ -106,10 +106,10 @@ def test_archive_merge_rules(tmp_path):
 
 def test_raw_snapshot_dedupe(tmp_path):
     archive = Archive(tmp_path / "archive")
-    data = b"\r\nRambleonDB = {\r\n}\r\n"
-    p, h = archive.snapshot_raw(data, Path("Rambleon.lua"))
+    data = b"\r\nWoWwrappedDB = {\r\n}\r\n"
+    p, h = archive.snapshot_raw(data, Path("WoWwrapped.lua"))
     assert p and p.exists() and archive.has_hash(h)
-    assert archive.snapshot_raw(data, Path("Rambleon.lua"))[0] is None
+    assert archive.snapshot_raw(data, Path("WoWwrapped.lua"))[0] is None
 
 
 def test_markdown_export_is_factual():
