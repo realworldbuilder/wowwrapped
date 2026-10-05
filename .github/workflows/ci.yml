@@ -26,7 +26,7 @@ jobs:
       - name: The wheel carries the AddOn, the prompts and the page styles
         run: |
           unzip -l companion/dist/*.whl > wheel.txt
-          for f in addon/WoWwrapped/WoWwrapped.toc addon/WoWwrapped/EventTypes.lua prompts/voices/golden.md assets/page.css; do
+          for f in addon/WoWwrapped/WoWwrapped.toc addon/WoWwrapped/EventTypes.lua prompts/voices/golden.md prompts/wrapped.md assets/page.css assets/wrapped.css; do
             grep -q "wowwrapped/$f" wheel.txt || { echo "missing from the wheel: $f"; exit 1; }
           done
       - name: Package the AddOn

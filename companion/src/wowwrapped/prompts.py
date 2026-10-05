@@ -1,6 +1,7 @@
 """The words WoWwrapped hands the writer, and the look of its pages: bundled files, and the player's own.
 
     <home>/prompts/voices/<name>.md     a voice of your own (`--voice <name>`, or `[wrapped] voice`)
+    <home>/prompts/wrapped.md           your own rules for the Wrapped's narration, replacing the bundled ones
     <home>/prompts/theme.css            CSS added after the bundled page styles
 
 <home> is ~/WoWwrapped for a package install and the checkout otherwise (WOWWRAPPED_HOME overrides; the folder is
@@ -17,8 +18,10 @@ KINDS = ("voices",)
 # What WoWwrapped fills in, per kind of prompt. Anything else in braces is sent to the writer as written; the
 # bundled prompts use that on purpose ({duration} in the recap template is for the model, not for us).
 PLACEHOLDERS = {
+    "wrapped": {"voice", "name", "pronouns"},
 }
-LITERAL = {
+LITERAL: dict[str, set[str]] = {
+    "wrapped": set(),
 }
 
 
@@ -47,6 +50,13 @@ def load(kind: str, name: str, home: Path | None = None) -> tuple[str, str, Path
         what = {"voices": "voice"}[kind]
         raise ValueError(f"unknown {what} {name!r}; available: {', '.join(sorted(known))} (or a path to a .md file)")
     return name, known[name].read_text(encoding="utf-8").strip(), known[name]
+
+
+def wrapped_rules(home: Path | None = None) -> tuple[str, Path]:
+    """The rules the Wrapped is narrated by: the player's prompts/wrapped.md when there is one."""
+    own = user_dir(home) / "wrapped.md"
+    path = own if own.is_file() else BUNDLED / "wrapped.md"
+    return path.read_text(encoding="utf-8"), path
 
 
 def theme_css(home: Path | None = None) -> str:

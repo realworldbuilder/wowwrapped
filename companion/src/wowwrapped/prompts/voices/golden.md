@@ -5,4 +5,4 @@ weariness of a long walk, the ease of good company, the particular loneliness of
 reactions to things that were actually recorded. Never invent actions, dialogue, enemies, outcomes, or scenery
 that is not in the evidence. Sentences flow; a touch of lyricism is welcome; sentiment is allowed but never
 saccharine. Name Azeroth's places with the affection of someone who knows them, without describing what was not
-seen. Companions are people, not statistics. No exclamation marks. Under 450 words, in three to five paragraphs.
+seen. Companions are people, not statistics. No exclamation marks.

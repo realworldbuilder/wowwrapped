@@ -20,6 +20,7 @@ from .notify import notify
 from .publish import export_html, write_html_index
 from .screenshots import refresh_session_screenshots
 from .share import share as run_share
+from .wrapped import write_wrapped
 
 Log = Callable[[str], None]
 MARKER_VERSION = 1
@@ -76,6 +77,16 @@ def step_markdown(ctx: NightContext) -> str:
     return f"exported {out.name}"
 
 
+def step_wrapped(ctx: NightContext) -> str:
+    """The character's Wrapped so far: the numbers every time, the narration only when this night is new to it.
+    Before the page and the index, which link to it."""
+    slug = ctx.night["character"].get("slug", "unknown")
+    result = write_wrapped(ctx.archive, ctx.paths.exports_dir, slug, use_ai=ctx.use_ai, model=ctx.model, voice=ctx.voice,
+                           log=ctx.log, only_if_new=True)
+    ctx.outputs["wrapped"] = result
+    return f"Wrapped {result['html']}"
+
+
 def step_page(ctx: NightContext) -> str:
     out = export_html(ctx.night, ctx.archive, ctx.paths.exports_dir)
     ctx.outputs["page"] = out
@@ -105,12 +116,13 @@ def step_notify(ctx: NightContext) -> None:
     night, st = ctx.night, night_stats(ctx.night)
     shared = " Shared." if getattr(ctx.outputs.get("share"), "pushed", False) else ""
     notify("WoWwrapped", f"{night['character'].get('displayName')}: {st['duration']} in Azeroth, "
-                       f"{st['quests']} quests, {st['kills']} kills. Page written.{shared}")
+                       f"{st['quests']} quests, {st['kills']} kills. Wrapped updated.{shared}")
 
 
 STEPS: list[Step] = [
     Step("screenshots", step_screenshots),
     Step("markdown", step_markdown),
+    Step("wrapped", step_wrapped, needs_ai=True),
     Step("page", step_page),
     Step("index", step_index),
     Step("share", step_share),

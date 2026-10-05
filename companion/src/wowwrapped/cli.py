@@ -29,6 +29,7 @@ from .config import effective, load_config, writer_voice
 from .share import ShareError, share as run_share
 from . import pipeline, prompts
 from .watch import Finalizer
+from .wrapped import span, write_wrapped
 from .wowstate import logged_out_since
 from .writer import DEFAULT_MODEL, DEFAULT_VOICE
 from .watch import ingest_once, reprocess as run_reprocess, watch as run_watch
@@ -212,7 +213,7 @@ def watch(interval: float = typer.Option(1.0, help="Seconds between polls."),
           model: str = typer.Option(None, "--model", help=f"Claude model (default: [wrapped] model, else {DEFAULT_MODEL})."),
           voice: str = typer.Option(None, "--voice", help="Voice profile (see `wrapped voices`; default: [wrapped] voice).")) -> None:
     """Watch SavedVariables and archive every session WoW writes. Leave this running while you play.
-    When a night ends it also writes the log, the story page and the index."""
+    When a night ends it also writes the log, the character's Wrapped, the story page and the index."""
     archive, paths = _archive()
     if paths.wow_dir is None:
         console.print("[red]WoW directory not found[/red] (set WOWWRAPPED_WOW_DIR)")
@@ -261,7 +262,7 @@ def finish(ref: str = typer.Argument("latest", help="tonight | latest | YYYY-MM-
            model: str = typer.Option(None, "--model", help=f"Claude model (default: [wrapped] model, else {DEFAULT_MODEL})."),
            voice: str = typer.Option(None, "--voice", help="Voice profile (see `wrapped voices`)."),
            share_it: bool = typer.Option(False, "--share", help="Also put the page on your GitHub Pages site (asks first).")) -> None:
-    """Do for a night everything the watcher does when you log out: log, story page, index.
+    """Do for a night everything the watcher does when you log out: log, Wrapped, story page, index.
     For a night the watcher missed, or to write one again."""
     archive, paths = _archive()
     try:
@@ -482,6 +483,28 @@ def _slug(archive: Archive, ref: str) -> str:
         return ref
     console.print(f"[red]no character matches {ref!r}[/red] — known: {', '.join(known) or 'none yet'}")
     raise typer.Exit(1)
+
+
+@command(app)
+def make(ref: str = typer.Argument("latest", help="character slug | latest"),
+         month: str = typer.Option(None, "--month", help="Only one month, like 2026-09."),
+         year: str = typer.Option(None, "--year", help="Only one year, like 2026."),
+         since: str = typer.Option(None, "--since", help="From this night on, like 2026-09-21."),
+         until: str = typer.Option(None, "--until", help="Up to this night, like 2026-10-03."),
+         no_ai: bool = typer.Option(False, "--no-ai", help="Only the numbers and the prompt; do not call the Claude CLI."),
+         model: str = typer.Option(None, "--model", help=f"Claude model (default: [wrapped] model, else {DEFAULT_MODEL})."),
+         voice: str = typer.Option(None, "--voice", help="Voice profile (see `wrapped voices`)."),
+         open_it: bool = typer.Option(False, "--open", help="Open the page in the browser.")) -> None:
+    """Make a character's Wrapped: everything so far, or one month, one year, or a range of nights."""
+    archive, paths = _archive()
+    slug = _slug(archive, ref)
+    result = write_wrapped(archive, paths.exports_dir, slug, span(month, year, since, until), use_ai=not no_ai,
+                           model=model, voice=voice, log=log)
+    for k, v in result.items():
+        console.print(f"{k}: {v}", highlight=False, soft_wrap=True)
+    write_html_index(archive, paths.exports_dir)
+    if open_it and sys.platform == "darwin":
+        subprocess.run(["open", str(result["html"])], check=False)
 
 
 def main() -> None:

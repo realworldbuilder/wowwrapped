@@ -1,5 +1,5 @@
 """What every HTML page shares: the document around it, the styles, the top bar, and the small pieces
-(paragraphs, figures, page names). The story page and index (publish.py)
+(paragraphs, figures, page names). The story page and index (publish.py) and the Wrapped (wrapped.py)
 are bodies inside `shell`; a new kind of page is one more body."""
 from __future__ import annotations
 
@@ -16,10 +16,12 @@ FONTS = ("<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
          "<link href='https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap' rel='stylesheet'>")
 
 
-def css() -> str:
-    """The page styles (assets/page.css), then the player's own prompts/theme.css when there is one: later
-    rules win, so a theme only says what it changes."""
+def css(wrapped: bool = False) -> str:
+    """The page styles (assets/page.css, plus assets/wrapped.css for the Wrapped), then the player's own
+    prompts/theme.css when there is one: later rules win, so a theme only says what it changes."""
     text = "\n" + (ASSETS / "page.css").read_text(encoding="utf-8")
+    if wrapped:
+        text += "\n" + (ASSETS / "wrapped.css").read_text(encoding="utf-8")
     theme = theme_css()
     if theme.strip():
         text += "\n/* prompts/theme.css */\n" + theme.rstrip() + "\n"
@@ -32,12 +34,12 @@ def top_nav(*links: tuple[str, str], home: str = "index.html") -> str:
             + "".join(f"<a href='{html.escape(href)}'>{html.escape(label)}</a>" for label, href in links) + "</nav>")
 
 
-def shell(title: str, nav: str, body: str, footer: str, body_attrs: str = "") -> str:
+def shell(title: str, nav: str, body: str, footer: str, body_attrs: str = "", wrapped: bool = False) -> str:
     """A whole page. `title`, `nav`, `body` and `footer` are HTML already (escape what goes into them)."""
     return "\n".join([
         "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
         f"<title>{title}</title>",
-        f"{FONTS}<style>{css()}</style></head><body{body_attrs}>",
+        f"{FONTS}<style>{css(wrapped)}</style></head><body{body_attrs}>",
         nav,
         body,
         f"<footer>{footer}</footer></body></html>",
@@ -62,6 +64,12 @@ def figure(img: dict[str, Any], cls: str = "") -> str:
 def page_name(session: dict[str, Any]) -> str:
     """A night's story page."""
     return export_filename(session).replace(".md", ".html")
+
+
+def wrapped_page_name(slug: str, key: str | None = None) -> str:
+    """A character's Wrapped (wrapped.py writes it). `key`: a month, a year or a range; None is the whole story
+    so far, the one the night pages and the index link to."""
+    return f"wrapped-{slug}{'-' + key if key else ''}.html"
 
 
 def index_anchor(slug: str) -> str:

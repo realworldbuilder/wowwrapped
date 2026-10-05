@@ -116,6 +116,18 @@ def pair_screenshots(shots: list[dict[str, Any]], events: list[dict[str, Any]]) 
         shot["caption"] = caption(shot, events)
 
 
+def shot_source(shot: dict[str, Any]) -> Path | None:
+    """The picture's file: the archived copy, else the same copy under where the archive is now (the recorded
+    path is absolute, and archives get moved), else WoW's own file."""
+    archived = Path(shot["archived"]) if shot.get("archived") else None
+    candidates = [archived]
+    if archived is not None:
+        from .paths import resolve_paths
+        candidates.append(resolve_paths().archive_dir / "screenshots" / archived.parent.name / archived.name)
+    candidates.append(Path(shot["path"]) if shot.get("path") else None)
+    return next((c for c in candidates if c is not None and c.is_file()), None)
+
+
 def attach_screenshots(session: dict[str, Any], directory: Path | None, copy_to: Path | None = None) -> dict[str, Any]:
     found = find_screenshots(directory, session.get("startedAt"), session.get("endedAt") or session.get("lastSeen"))
     merged = list(session.get("screenshots", []))

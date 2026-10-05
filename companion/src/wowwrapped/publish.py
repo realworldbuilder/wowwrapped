@@ -11,9 +11,9 @@ from .archive import Archive, atomic_write_bytes
 from .export import (_by_zone, _collapse_carried, _collapse_titles, _quest_label, _times, carried_over, clock, describe, duration,
                      export_filename, long_date, night_stats, place, quest_summary, render_recap)
 from .events import shown
-from .pages import PROJECT_URL, figure as _figure, index_anchor, page_name as _page_name, shell, top_nav
+from .pages import PROJECT_URL, figure as _figure, index_anchor, page_name as _page_name, shell, top_nav, wrapped_page_name
 from .nights import chapter_numbers, earlier_nights, nights
-from .screenshots import caption as shot_caption, event_index
+from .screenshots import caption as shot_caption, event_index, shot_source
 
 RESIZER = shutil.which("sips")   # macOS image tool; web copies are 1600 px JPEGs when it is present
 WEB_WIDTH = 1600
@@ -68,6 +68,9 @@ def write_html_index(archive: Archive, exports_dir: Path, only: set[str] | None 
     if len(groups) <= 1:
         slug, group = next(iter(groups.items()), ("", {"character": {}, "cards": []}))
         name = html.escape(group["character"].get("displayName", "") or "WoWwrapped")
+        wrapped = _wrapped_link(exports_dir, slug, only)
+        if wrapped:
+            nav_links.insert(0, ("Wrapped", wrapped))
         title = f"{name} — Adventure Journal"
         body = (f"<h1 id='{html.escape(slug)}'>{name}</h1><div class='meta'>Adventure journal · {chapters(total)} · newest first</div>"
                 "<ul class='chapters'>" + "".join(group["cards"]) + "</ul>")
@@ -78,10 +81,11 @@ def write_html_index(archive: Archive, exports_dir: Path, only: set[str] | None 
         for (slug, group), name in zip(groups.items(), names):
             c, n = group["character"], len(group["cards"])
             line = html.escape(character_line(c))
+            wrapped = _wrapped_link(exports_dir, slug, only)
             roster.append(f"<a class='char' href='#{html.escape(slug)}'><span class='cn'>{name}</span>"
                           + (f"<span class='cl'>{line}</span>" if line else "")
                           + f"<span class='cm'>{chapters(n)} · last played {html.escape(long_date(group['latest']))}</span></a>")
-            meta = " · ".join(x for x in (line, chapters(n)) if x)
+            meta = " · ".join(x for x in (line, chapters(n), f"<a href='{html.escape(wrapped)}'>Wrapped</a>" if wrapped else "") if x)
             sections.append(f"<section class='who' id='{html.escape(slug)}'><h2>{name}</h2><div class='meta'>{meta}</div>"
                             "<ul class='chapters'>" + "".join(group["cards"]) + "</ul></section>")
         body = (f"<h1>Adventure Journal</h1><div class='meta'>{len(groups)} characters · {chapters(total)} · newest first</div>"
@@ -90,6 +94,14 @@ def write_html_index(archive: Archive, exports_dir: Path, only: set[str] | None 
     out = out or exports_dir / "html" / "index.html"
     atomic_write_bytes(out, doc.encode("utf-8"))
     return out
+
+
+def _wrapped_link(exports_dir: Path, slug: str, allowed: set[str] | None) -> str | None:
+    """The Wrapped's page name when it exists and will sit beside the page being written."""
+    name = wrapped_page_name(slug) if slug else ""
+    if name and (exports_dir / "html" / name).exists() and (allowed is None or name in allowed):
+        return name
+    return None
 
 
 def _count(n: int, noun: str) -> str:
@@ -160,8 +172,8 @@ def prepare_images(session: dict[str, Any], image_dir: Path | None) -> list[dict
     out = []
     shots = sorted(session.get("screenshots", []), key=lambda s: s.get("takenAt") or 0)
     for n, shot in enumerate(shots, 1):
-        src = Path(shot.get("archived") or shot.get("path") or "")
-        copy = _web_copy(src, image_dir, f"{image_dir.name}-{n:02d}") if src.name else None
+        src = shot_source(shot)
+        copy = _web_copy(src, image_dir, f"{image_dir.name}-{n:02d}") if src else None
         if copy is None:
             continue
         out.append({"src": f"{image_dir.name}/{copy.name}", "caption": shot.get("caption") or shot_caption(shot, events),
@@ -226,8 +238,9 @@ def _quests_section(session: dict[str, Any], carried: list[tuple[dict[str, Any],
 
 
 def render_html(session: dict[str, Any], number: int, image_dir: Path | None, pager: str = "", pager_bottom: str = "",
-                carried: list[tuple[dict[str, Any], int]] | None = None) -> str:
-    """`carried`: carried_over() output, quests still open from earlier chapters."""
+                wrapped: str | None = None, carried: list[tuple[dict[str, Any], int]] | None = None) -> str:
+    """`wrapped`: the character's Wrapped page to link from the top bar, when one exists beside this page.
+    `carried`: carried_over() output, quests still open from earlier chapters."""
     c = session.get("character", {})
     title = chapter_title(session, number)
     name = c.get("displayName", "Unknown")
@@ -235,7 +248,7 @@ def render_html(session: dict[str, Any], number: int, image_dir: Path | None, pa
     quests = _quests_section(session, carried)
     jumps = ([("Recap", "#recap")] + ([("Quests", "#quests")] if quests else [])
              + [("Journey", "#journey")] + ([("Notes", "#notes")] if notes else []))
-    nav = top_nav(("All chapters", index_anchor(c.get("slug", ""))), ("About WoWwrapped", "../"))
+    nav = top_nav(("All chapters", index_anchor(c.get("slug", ""))), *([("Wrapped", wrapped)] if wrapped else []), ("About WoWwrapped", "../"))
     parts = [f"<h1>{html.escape(title)}</h1>",
              f"<div class='meta'>{html.escape(name)} · {html.escape(long_date(session.get('startedAt')))} · {html.escape(duration(session.get('playedSeconds')))} in Azeroth</div>",
              "<div class='jump'>" + "".join(f"<a href='{h}'>{t}</a>" for t, h in jumps) + "</div>",
@@ -298,6 +311,7 @@ def export_html(session: dict[str, Any], archive: Archive, exports_dir: Path, si
     image_dir = out.with_suffix("")  # exports/html/<date>-<slug>/  next to the page
     prev_, next_ = neighbours(archive, session, siblings, own)
     page = render_html(session, number, image_dir, pager=_pager(numbers, prev_, next_),
-                       pager_bottom=_pager(numbers, prev_, next_, "bottom"), carried=carried_over(prior, session))
+                       pager_bottom=_pager(numbers, prev_, next_, "bottom"),
+                       wrapped=_wrapped_link(exports_dir, slug or "", siblings), carried=carried_over(prior, session))
     atomic_write_bytes(out, page.encode("utf-8"))
     return out

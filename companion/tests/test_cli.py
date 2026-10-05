@@ -46,12 +46,16 @@ def test_the_everyday_commands(home):
     assert "golden (default)" in run("voices") and "bundled" in run("voices")
     assert "[wrapped]" in run("config") and "not there" in run("config")
     run("page", "latest", "--no-open")
+    out = run("make", "latest", "--no-ai")
+    assert "nights: 1" in out and (home / "exports" / "html" / "wrapped-rambleon-birdsong.html").exists()
+    assert "nights: 1" in run("make", "rambleon-birdsong", "--no-ai", "--month", "2026-09")
+    assert list((home / "exports" / "prompts").glob("wrapped-*-prompt.md"))
     assert list((home / "exports" / "html").glob("2026-*.html"))
 
 
 def test_finish_runs_every_step_and_shares_nothing(home):
     out = run("finish", "latest", "--no-ai")
-    for step in ("screenshots", "markdown", "page", "index"):
+    for step in ("screenshots", "markdown", "wrapped", "page", "index"):
         assert f"{step}: ok" in out
     assert "share: skipped" in out and "notify: skipped" in out
     assert list((home / "exports" / "finished").glob("night-*.json"))
@@ -61,6 +65,9 @@ def test_what_goes_wrong_is_one_line_and_exit_code_1(home):
     assert "no night matches" in run("page", "1999-01-01", code=1)
     assert "no night matches" in run("finish", "1999-01-01", code=1)
     assert "no archived session matches" in run("show", "nope", code=1)
+    assert "no nights in that range" in run("make", "latest", "--no-ai", "--year", "1999", code=1)
+    assert "choose one of" in run("make", "latest", "--month", "2026-09", "--year", "2026", code=1)
+    assert "unknown voice" in run("make", "latest", "--voice", "nope", code=1)
     assert "needs the WoWwrapped git checkout" in run("share", "--dry-run", code=1).replace("\n", " ")
     (home / "wowwrapped.local.toml").write_text("[share\nauto = true\n")
     assert "not valid TOML" in run("config", code=1)
