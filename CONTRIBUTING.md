@@ -1,7 +1,7 @@
 # Contributing to WoWwrapped
 
-WoWwrapped is a personal memory layer for World of Warcraft: you play, it remembers, and it hands you the night as
-a journal. It is free and open, and small on purpose.
+WoWwrapped is a personal memory layer for World of Warcraft: you play, it records, and it hands you a Wrapped page
+per character, with a facts page per night underneath. It is free and open, and small on purpose.
 
 ## The one question
 
@@ -20,14 +20,14 @@ scripts/test             # Lua syntax, a scripted evening under a WoW API stub, 
 You do not need World of Warcraft to run the tests. To try the AddOn in game, `wrapped install` links
 `addon/WoWwrapped/` into your WoW folder; `/reload` picks up changes.
 
-`scripts/test -k nights` passes extra arguments to pytest. The tests never touch your own archive, settings,
-Claude login or X keys.
+`scripts/test -k nights` passes extra arguments to pytest. The tests never touch your own archive, settings
+or Claude login.
 
 ## Where things are
 
 - `addon/WoWwrapped/` is the AddOn (Lua). `EventTypes.lua` lists everything it can remember.
 - `companion/src/wowwrapped/` is the Mac side (Python, `wrapped`). `events.py` is the twin of `EventTypes.lua`;
-  `pipeline.py` is what happens after a night.
+  `pipeline.py` is what happens after a night; `wrapped.py` sums a character's nights into the Wrapped.
 - [docs/extending.md](docs/extending.md) shows how to add an event type, an output, or a voice.
 - [docs/data-model.md](docs/data-model.md) describes every file WoWwrapped writes.
 - [CLAUDE.md](CLAUDE.md) has the rules in full; the short version follows.
@@ -49,7 +49,7 @@ Claude login or X keys.
   `wowwrapped.local.toml`.
 
 **Writing** (prompts): only what was recorded. Names of people and places only from the evidence. Feelings only
-as reactions to recorded events.
+as reactions to recorded events. The player's own notes outrank anything the API says.
 
 ## Sending a change
 

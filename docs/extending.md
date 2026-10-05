@@ -46,20 +46,19 @@ Worked example: remembering that the player took a flight (`FLIGHT_TAKEN`).
 4. `events.py`: the twin entry.
 
    ```python
-   "FLIGHT_TAKEN": EventType(lambda ev: f"Flew to {ev.get('name') or 'somewhere'}", guide="passive"),
+   "FLIGHT_TAKEN": EventType(lambda ev: f"Flew to {ev.get('name') or 'somewhere'}"),
    ```
 
    | field | meaning | default |
    |---|---|---|
-   | `describe` | the line in the Markdown log, the story page timeline and the writer's prompt | required |
-   | `guide` | route guide: `skip`, `anchor` (a visit with one is a stretch of its own), `passive` (being somewhere), `active` | `active` |
+   | `describe` | the line in the Markdown log and the story page timeline | required |
    | `stitch` | joining sessions into a night: `keep`, `drop`, `first`, `last` | `keep` |
    | `timeline` | listed at all | `True` |
    | `shot_fallback` | a screenshot with no event of its own may be captioned by this moment | `True` |
    | `counter` | the counter the AddOn bumps; must also be in `model.COUNTER_KEYS` | none |
 
-That is a complete type: it is archived, shown in the log, on the page and in the prompt. Anything more specific
-(a line in the route guide's facts, a section in the prompt) is ordinary code in `guide.py` or `summarize.py`.
+That is a complete type: it is archived and shown in the log and on the night's page. Anything more specific
+(a number or a card on the Wrapped) is ordinary code in `wrapped.py`: `build_wrapped` sums it, `cards` shows it.
 
 A type the companion does not know yet is never dropped: it reads as its name in plain words. So an AddOn that is
 newer than the companion loses nothing.
@@ -82,6 +81,8 @@ def step_recap_card(ctx: NightContext) -> str:
 STEPS = [..., Step("page", step_page), Step("recap_card", step_recap_card), Step("index", step_index), ...]
 ```
 
+The steps today: `screenshots` → `markdown` → `wrapped` → `page` → `index` → `share` → `notify`.
+
 - A step that raises is logged and recorded as failed; the steps after it still run.
 - `raise Skip("why")` when there is nothing to do.
 - `ctx.unattended` is true when the watcher is running it: nobody is there to ask. Anything that leaves the Mac
@@ -89,29 +90,30 @@ STEPS = [..., Step("page", step_page), Step("recap_card", step_recap_card), Step
 - `needs_ai=True` marks a step that may call the Claude CLI. It must still do its non-AI part (write the prompt)
   when `ctx.use_ai` is false.
 
-A new HTML page is a body inside `pages.shell(...)`; the styles are `assets/page.css`.
+A new HTML page is a body inside `pages.shell(...)`; the styles are `assets/page.css` (and `assets/wrapped.css` for
+the Wrapped).
 
 A new setting goes in `config.py`: a field on the section's dataclass and a rule in `SECTIONS`. Unknown keys and
 bad values are reported by `wrapped config` and `wrapped doctor` without any further code.
 
-## 3. A new way of writing (voices, guide modes, rules, theme)
+## 3. A new way of writing (voices, rules, theme)
 
 No code. Files in the player's own folder, `<home>/prompts/` (`~/WoWwrapped/prompts/` for a package install, the
 checkout otherwise; `wrapped voices` prints the path):
 
 | file | what it is | used by |
 |---|---|---|
-| `voices/<name>.md` | a voice: how the chapter should sound | `--voice <name>`, `[journal] voice = "<name>"` |
-| `guides/<name>.md` | a guide mode: what to write from the route's facts | `wrapped guide --mode <name>`, `[guide] mode` |
-| `journal.md` | the rules every chapter is written by (replaces the bundled ones) | every chapter |
-| `theme.css` | CSS added after the page styles | every story page, index and guide |
+| `voices/<name>.md` | a voice: how the Wrapped's lines should sound | `wrapped make --voice <name>`, `[wrapped] voice = "<name>"` |
+| `wrapped.md` | the rules the Wrapped is narrated by (replaces the bundled ones) | every Wrapped |
+| `theme.css` | CSS added after the page styles | every story page, index and Wrapped |
 
 A file of yours with a bundled name wins. A path to a `.md` file works wherever a name does.
 
-Placeholders WoWwrapped fills in: `{voice}` and `{chapter}` in `journal.md`; `{voice}`, `{name}`, `{pronouns}`,
-`{startLevel}`, `{endLevel}` and `{nights}` in a guide mode. Any other `{word}` is sent to the writer as written,
-and pointed out when the prompt is built in case it was a typo.
+Placeholders WoWwrapped fills in in `wrapped.md`: `{voice}`, `{name}` and `{pronouns}`. Any other `{word}` is sent
+to the writer as written, and pointed out when the prompt is built in case it was a typo. The writer must answer in
+the shape the bundled rules ask for (one `key: sentence` line per card, a `---CLOSING---` line, a closing
+paragraph), so keep that part when you write your own.
 
-To ship a voice or mode with WoWwrapped, put the file in `companion/src/wowwrapped/prompts/voices/` or `guides/`.
-The honesty rules in `journal.md` (only what was recorded; names only from the evidence) are the product; a voice
-changes the sound, never the facts.
+To ship a voice with WoWwrapped, put the file in `companion/src/wowwrapped/prompts/voices/`.
+The honesty rules in the bundled `prompts/wrapped.md` (only the facts on the cards; names exactly as given; the
+player's notes are the most important evidence) are the product; a voice changes the sound, never the facts.

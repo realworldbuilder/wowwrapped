@@ -34,7 +34,7 @@ from .wowstate import logged_out_since
 from .writer import DEFAULT_MODEL, DEFAULT_VOICE
 from .watch import ingest_once, reprocess as run_reprocess, watch as run_watch
 
-app = typer.Typer(help="WoWwrapped — your Azeroth adventure journal, Mac side.", no_args_is_help=True, add_completion=False,
+app = typer.Typer(help="WoWwrapped — your characters, wrapped. The Mac side.", no_args_is_help=True, add_completion=False,
                   pretty_exceptions_enable=False)
 console = Console()
 
@@ -124,7 +124,7 @@ def doctor(fix: bool = typer.Option(False, "--fix", help="Repair what can be rep
 
 @command(app)
 def setup(no_ai: bool = typer.Option(False, "--no-ai", help="Do not use the Claude CLI.")) -> None:
-    """One command for a new Mac: link the AddOn, start the background watcher, build the journal index, open it."""
+    """One command for a new Mac: link the AddOn, start the background watcher, build the index, open it."""
     paths = resolve_paths()
     archive = Archive(paths.archive_dir)
     archive.ensure()
@@ -143,7 +143,7 @@ def setup(no_ai: bool = typer.Option(False, "--no-ai", help="Do not use the Clau
     except RuntimeError as e:
         console.print(f"[yellow]background watcher not installed: {e}[/yellow] — you can run `wrapped watch` in a terminal instead")
     index = write_html_index(archive, paths.exports_dir)
-    console.print(f"journal: {index}")
+    console.print(f"index: {index}")
     checks = run_doctor(paths, check_ai=True)
     _print_checks(checks)
     console.print()
@@ -328,7 +328,7 @@ def config() -> None:
 
 @command(app)
 def voices() -> None:
-    """List voice profiles: the bundled ones and your own. Default: golden, or `[wrapped] voice`."""
+    """List voice profiles: the bundled ones and your own. Default: golden, or `voice` under `wrapped` in the settings."""
     default = writer_voice() or DEFAULT_VOICE
     for name, path in sorted(prompts.available("voices").items()):
         marker = " (default)" if name == default else ""
@@ -339,7 +339,7 @@ def voices() -> None:
 
 @command(app)
 def nights() -> None:
-    """List chapters: one per night, per character."""
+    """List nights, per character."""
     archive, _ = _archive()
     rows = list_nights(archive)
     if not rows:

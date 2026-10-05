@@ -4,126 +4,118 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## WoWwrapped
 
-WoWwrapped is a **personal memory layer for World of Warcraft**. You play; it quietly remembers; at the end of the
-night it hands you a permanent record: a timeline, a factual log, a story page, and an AI-written chapter you can
-read in game and paste anywhere. Strava for Azeroth, written like a field journal.
+WoWwrapped is **Spotify Wrapped for your World of Warcraft characters**. You play; it quietly records; it hands you
+a Wrapped: one page of cards per character with the hours, the levels, the enemies, the zones, the company you
+kept, the deaths, your own notes and your pictures, told in a few lines. Every night also keeps a plain facts page.
 
 Owner: William Hussey. First character: **Rambleon Birdsong**, Night Elf Hunter (male), World of Warcraft: Forever beta.
 Goal: something to *offer* other players (free, open), not primarily something to sell.
 
+It grew out of Rambleon 0.4.0 (https://github.com/realworldbuilder/rambleon), a per-night adventure journal.
+"Rambleon" in this repo is the character's name, not the product: never rename it. Archives recorded by Rambleon
+(`RambleonDB`) still load.
+
 ## What WoWwrapped is NOT
 
 - not a DPS meter, not a combat assistant, not a rotation helper
-- not a leveling guide or quest helper: no advice, no optimal route, no help in game. Your own path, retold
-  (`wrapped guide`), is memory, not guidance.
+- not a leveling guide or quest helper: no advice, no optimal route, no help in game
+- not a ranking against other players: a Wrapped is about one character, for the person who played them
 - not a general WoW database
 - not automation of any kind (no movement, no ability use, no interaction with other players)
 
 ## The one question
 
-Before adding a feature or recording an event: **"Will this help the player remember their adventure?"**
-If it would not be interesting to read six months later, it does not belong. Memories, not telemetry.
-The player's own words (`/wrapped note`) always outrank anything the API can tell us.
+Before adding a card or recording an event: **"Would the player smile, wince or nod at this six months later?"**
+If not, it does not belong. Memories, not telemetry. The player's own words (`/wrapped note`) always outrank
+anything the API can tell us.
 
-## How it works (current, 2026-10-04, release 0.4.0)
+## How it works (current, 2026-10-05, release 0.1.0)
 
 ```
 WoW: Forever → WoWwrapped AddOn (Lua) → SavedVariables (written on logout and /reload)
              → wrapped watch (Mac, launchd service) → archive/ (immutable raw + normalized JSON)
-             → nights (a chapter = one evening) → Markdown log, AI journal, HTML story page
-             → Chapters.lua published back into the AddOn → /wrapped chapters in game
+             → nights (one evening) → Markdown log, the character's Wrapped, the night's story page, the index
 ```
 
 - **The log just runs.** There is no "end" button. Logging out is the save. `/wrapped save` is an optional flush.
-- **Pictures**: the AddOn calls `Screenshot()` at level ups, `/wrapped mark` and the first visit to a new zone (UI visible,
-  `/wrapped shots on|off`). The `SCREENSHOT` event carries the reason; the companion pairs the file, captions it, copies it
-  into `archive/screenshots/`, and the story page shows a hero picture plus the rest on the timeline.
-- **Sharing is manual by default**: `wrapped share tonight` copies the page and web-sized pictures into `site/example`,
-  commits and pushes after asking. A Mac can opt in to automatic sharing with `[share] auto = true` in the gitignored
-  `wowwrapped.local.toml`: then every finished chapter is pushed by the watcher. Nothing else publishes.
-- **X**: `wrapped post tonight` tells a night on X (asks first): title, the writer's `---POST---` line, hero picture;
-  `--style thread` posts the whole chapter. Keys of the player's own X developer app live in the macOS Keychain
-  (`wrapped x login`; OAuth 1.0a, stdlib only, pay-per-use API, a link in a post costs ~13× more so `link` is off by
-  default). `[x] auto = true` in `wowwrapped.local.toml`: the watcher's `AutoPoster` posts a night once it is over, its
-  chapter covers the last session, it has been quiet for `delay` minutes and (for tonight's) the player is not in the world.
-  `archive/posts/x.json` is the ledger: a night is never posted twice. No post has gone out yet: the first live try
-  (10-01) was refused because the developer app was not attached to a project.
-- **A chapter is a night**: every session of one evening (5 a.m. cutoff) stitched together in `nights.py`.
-  Reloads and relogs are continuity, not breaks (the AddOn resumes a session seen < 10 min ago).
-- **Finalization**: the watcher writes the chapter the moment the player leaves (WoW quit, or `Logs/Client.log`
-  shows a logout after the last save), ten minutes after the last write as fallback, or at once after `/wrapped save`.
-  Then the steps of `pipeline.STEPS`, each guarded so one failure never skips the rest: late screenshots → Markdown
-  log → AI journal (if the Claude CLI is logged in; the prompt always) → route guide (facts always; prose only when a
-  night is new to it) → story page → index → publish to the game → share (only with `[share] auto`) → macOS notification.
-  A marker in `exports/finished/` says a night is done; a watcher that was down or crashed finishes what it owes when
-  it starts (nights of the last two days), and `wrapped finish [tonight|date]` does the same by hand.
-- **Route guide**: one page per character, `exports/html/guide-<slug>.html`, linked from every story page and the index,
-  and copied by `wrapped share`. `guide.py` cuts the nights into zone stretches (a visit stands alone when a quest was
-  turned in, a level reached, a death or a note happened there, or 20+ minutes with something done; anything else folds
-  into its neighbour as "passing through"; stretches span nights) and lists what was picked up, turned in, first fought,
-  looted, where the deaths were, and the player's notes. A **mode** is the prompt that says what to write from those facts:
-  `prompts/guides/route.md` (default, for another player), `season.md` (the story so far, for the player), or
-  `--mode /your/file.md`. `WOWWRAPPED_GUIDE_MODE` or `[guide] mode = "..."` in `wowwrapped.local.toml` sets the watcher's.
-  Sidecar `exports/guide/<slug>-<mode>.json` remembers which nights the prose covers.
-- **Voices**: `companion/src/wowwrapped/prompts/voices/*.md`. Default `golden` (warm, close third person, Christie
-  Golden-like); `field-journal` (dry, observational). `--voice` (a name or a path to a .md), `WOWWRAPPED_VOICE`,
-  `[journal] voice`, `wrapped voices`.
+- **Pictures**: the AddOn calls `Screenshot()` at level ups, `/wrapped mark` and the first visit to a new zone (UI
+  visible, `/wrapped shots on|off`). The `SCREENSHOT` event carries the reason; the companion pairs the file, captions
+  it and copies it into `archive/screenshots/`. Archived paths are absolute, so `screenshots.shot_source` also looks
+  under where the archive is now.
+- **A night**: every session of one evening (5 a.m. cutoff) stitched together in `nights.py`. Reloads and relogs are
+  continuity, not breaks (the AddOn resumes a session seen < 10 min ago). Pages still call a night a "chapter".
+- **The Wrapped** (`wrapped.py`): `build_wrapped` sums one character's nights (pure: nights in, numbers out);
+  `cards` turns the numbers into cards, each with a caption made from the facts alone, and leaves out a card with
+  nothing to show; `write_wrapped` writes `exports/html/wrapped-<slug>.html`. A `Span` (`--month`, `--year`,
+  `--since/--until`) gives a range its own page, `wrapped-<slug>-<key>.html`; only the whole-story page is linked from
+  night pages and the index, kept current by the pipeline, and shared. Zone time is the night's played time shared
+  out by the gaps between events (kills are not events). The persona is chosen by fixed rules in `_persona`.
+- **Narration is optional.** With the Claude CLI logged in, the writer adds one line per card and a closing
+  paragraph: rules in `prompts/wrapped.md`, voice in `prompts/voices/`. Sidecar `exports/wrapped/<slug>[-<key>].json`
+  remembers which nights it covers, so the watcher only pays when a night is new. The prompt file is always written
+  (`exports/prompts/wrapped-<slug>-prompt.md`); without the CLI the page is complete.
+- **Finalization**: the watcher finishes a night the moment the player leaves (WoW quit, or `Logs/Client.log` shows a
+  logout after the last save), ten minutes after the last write as fallback, or at once after `/wrapped save`. Then
+  the steps of `pipeline.STEPS`, each guarded so one failure never skips the rest: late screenshots → Markdown log →
+  Wrapped → story page → index → share (only with `[share] auto`) → macOS notification. A marker in
+  `exports/finished/` says a night is done; a watcher that was down finishes what it owes when it starts (nights of
+  the last two days), and `wrapped finish [tonight|date]` does the same by hand.
+- **Sharing is manual by default**: `wrapped share tonight` copies the night's page, the Wrapped and web-sized
+  pictures into `site/example`, commits and pushes after asking. `[share] auto = true` in the gitignored
+  `wowwrapped.local.toml` lets the watcher do it. Nothing else publishes.
+- **Voices**: `companion/src/wowwrapped/prompts/voices/*.md`. Default `golden`; `field-journal` (dry). `--voice`
+  (a name or a path to a .md), `WOWWRAPPED_VOICE`, `[wrapped] voice`, `wrapped voices`.
 - **The player's own prompts**: `<home>/prompts/` (`~/WoWwrapped/prompts/`, or the checkout's gitignored `prompts/`):
-  `voices/*.md`, `guides/*.md`, `journal.md` (replaces the chapter rules), `theme.css` (added to every page).
-  Theirs win over bundled files of the same name. `prompts.py`.
-- **Local settings**: `wowwrapped.local.toml` (gitignored; `~/WoWwrapped/` for a package install). `config.py` reads it
-  into a typed `Config`; unknown keys and bad values are warnings, broken TOML is said out loud, `wrapped config`
-  prints what is in effect. `[characters."slug"]` overrides character fields for sessions recorded before the AddOn
-  captured them (e.g. gender); `[people."Name"] note = "..."` gives the writer your own words about a companion;
-  `[journal] voice / model`, `[guide] mode`, `[share] auto`, `[x] ...`.
-- **Memory between chapters**: `memory.py` builds what the writer may remember (last three chapters as facts, the
-  previous chapter's text, each companion's history) from earlier nights and their journal sidecars. Rule 6 in
-  `prompts/journal.md` says how it may be used: continue the story, never retell it.
+  `voices/*.md`, `wrapped.md` (replaces the narration rules), `theme.css` (added to every page). Theirs win over
+  bundled files of the same name. `prompts.py`.
+- **Local settings**: `wowwrapped.local.toml` (gitignored; `~/WoWwrapped/` for a package install). `config.py` reads
+  it into a typed `Config`; unknown keys and bad values are warnings, broken TOML is said out loud, `wrapped config`
+  prints what is in effect. `[share] auto`, `[wrapped] voice / model`, `[characters."slug"]` (overrides character
+  fields, e.g. gender), `[people."Name"] note = "..."` (your own words about a companion, given to the writer).
 
 ## Layout
 
 - `addon/WoWwrapped/` — the AddOn. `WoWwrapped_Camelot.toc` (Forever, Interface 16001) + `WoWwrapped.toc` fallback.
   `EventTypes.lua` (every event type: its line in the log, its counter), `Session.lua` (DB, settings, the session,
-  recorders, screenshots), `Events.lua` (game event → handler), `Journal.lua`, `UI.lua`, `Commands.lua` (`ns.COMMANDS`).
-  `Chapters.lua` is generated by the companion and gitignored. `Bindings.xml` is loaded by name; never list it in a TOC.
-- `addon/tests/` — Lua 5.5 stub + `run.lua`: a scripted session that also emits the parser fixture.
+  recorders, screenshots), `Events.lua` (game event → handler), `Journal.lua`, `UI.lua` (the session panel),
+  `Commands.lua` (`ns.COMMANDS`). `Bindings.xml` is loaded by name; never list it in a TOC.
+- `addon/tests/` — Lua 5.5 stub + `run.lua`: a scripted session that also emits the parser fixture
+  (`companion/tests/fixtures/WoWwrapped_simulated.lua`).
 - `companion/` — Python ≥ 3.11, uv, typer. `src/wowwrapped/`: `paths` (find WoW/WTF), `luaparse` (safe SV parser),
-  `normalize`, `archive`, `watch` (+ `Finalizer`), `wowstate` (logout detection), `nights`, `export`, `summarize`,
-  `publish` (Chapters.lua, story page, index), `service` (launchd), `notify`, `config`, `doctor`, `install`, `cli`,
-  `model` (schema constants), `screenshots` (pairs files with SCREENSHOT events, captions), `share` (GitHub Pages),
-  `memory` (what earlier chapters lend the prompt), `guide` (the route guide: stretches, modes, page),
-  `xpost` (X: keys, signing, composing the post or thread, ledger, the watcher's auto-post),
-  `events` (every event type: describe, guide role, stitching; twin of `EventTypes.lua`),
-  `pipeline` (the after-night steps, the finish marker, what is unfinished), `pages` (the HTML shell, top bar, CSS
-  from `assets/*.css`), `prompts` (bundled and the player's own voices, modes, rules, theme).
+  `normalize`, `archive`, `watch` (+ `Finalizer`), `wowstate` (logout detection), `nights`, `export` (Markdown log,
+  night numbers, quests), `wrapped` (the Wrapped: numbers, cards, prompt, page), `writer` (voices, the Claude CLI),
+  `publish` (a night's story page, the index), `pages` (the HTML shell, top bar, CSS from `assets/*.css`),
+  `pipeline` (the after-night steps, the finish marker, what is unfinished), `share` (GitHub Pages), `screenshots`,
+  `events` (every event type; twin of `EventTypes.lua`), `model` (schema constants), `prompts`, `config`, `service`
+  (launchd), `notify`, `doctor`, `install`, `cli`.
 - The companion wheel **bundles the AddOn** via an explicit per-file `force-include` list in `companion/pyproject.toml`.
   Adding a file to `addon/WoWwrapped/` means adding it there too, or `uv tool install` users get a broken AddOn.
   Without a checkout, `install.py` seeds `~/WoWwrapped/addon/WoWwrapped` from the bundled copy.
 - `archive/` — **source of truth**, gitignored. Raw snapshots never edited; normalized sessions never shrink.
-- `exports/` — regenerable, gitignored: `markdown/`, `prompts/`, `journal/` (sidecars), `guide/` (guide sidecars), `html/`, `social/`.
-- `site/` — GitHub Pages (`.github/workflows/pages.yml`): landing page + `example/`, a committed snapshot of
-  Rambleon Birdsong's story pages. Refresh with `wrapped share`; pushing makes the journal public.
-- `docs/` — `extending.md` (how to add an event type, an output step, a voice), `environment.md` (this Mac),
-  `addon-api.md` (Forever facts + the SV bug), `data-model.md`, `progress.md` (running log; read "To verify in game"
-  at the top first), `roadmap.md` (product plan). `CONTRIBUTING.md` at the root.
+- `exports/` — regenerable, gitignored: `markdown/`, `prompts/`, `wrapped/` (narration sidecars), `html/`, `finished/`.
+- `site/` — GitHub Pages (`.github/workflows/pages.yml`): landing page + `example/`. `site/example` still holds
+  Rambleon-era pages until the first `wrapped share`; pushing makes the pages public.
+- `docs/` — `extending.md`, `environment.md` (this Mac), `addon-api.md` (Forever facts + the SV bug),
+  `data-model.md`, `progress.md` (running log; read "To verify in game" at the top first), `roadmap.md`.
 
-## What we know about the Forever client (verified in game)
+## What we know about the Forever client (verified in game, with the AddOn under its old name)
 
 - Mainline 12.x UI codebase, version 1.60.1, builds 69913 → 70009. `WOW_PROJECT_ID` = 1. Surnames, no realms;
   realm `"Classic Beta PvE"`, WTF folder `70/Rambleon-Birdsong`. **The name API changed with build 70009** (2026-09-24):
   before, `UnitName("player")` → `"Rambleon Birdsong"` and `UnitFullName` → `"Rambleon Birdsong", "ClassicBetaPvE"`;
   now `UnitName` → `"Rambleon"` and `UnitFullName` → `"Rambleon", "Birdsong"`. Both sides derive one `displayName`
-  (`ns.ComposeDisplayName` / `normalize.display_name`) and the game matches chapters by GUID, never by name alone.
+  (`ns.ComposeDisplayName` / `normalize.display_name`); characters are matched by GUID, never by name alone.
 - `C_UI.Reload()` works from a popup button. `QUEST_TURNED_IN` fires with questID. No event registration failed.
 - The SavedVariables bug: files are written but not restored on **cold start**; on this Mac they *were* restored
-  across `/reload`. Design assumes nothing: the Mac owns history.
+  across `/reload`. Design assumes nothing: the Mac owns history. One consequence: `ns.IsFirstRun` can be true again
+  after a cold start, so the welcome line and popup may repeat.
 - `UnitLevel` at logout can be stale; end level is derived from event levels on both sides.
 - Kills come from the "X dies, you gain N experience." chat line (no combat log). Loot from the chat loot line
-  (uncommon+ only; the link uses the named colour `|cnIQ2:`). `Screenshot()` and file pairing work (nightly since 09-23),
-  LOOT since 10-02.
-- Unverified in game as of 10-04 (all new in 0.4.0; the list is at the top of `docs/progress.md`): `QUEST_REMOVED` →
-  abandoned quests, `HEARTHSTONE_BOUND`, `ENCOUNTER_END` → boss kills, `INSTANCE_EXIT` through a loading screen,
-  the welcome popup, the Pictures row. `EQUIP` has never appeared in the archive.
+  (uncommon+ only; the link uses the named colour `|cnIQ2:`). `Screenshot()` and file pairing work.
+- Unverified in game: the AddOn under its new name (folder, `/wrapped`, `/ww`, keybindings, `WoWwrappedDB`), and from
+  Rambleon 0.4.0 `QUEST_REMOVED` → abandoned quests, `HEARTHSTONE_BOUND`, `ENCOUNTER_END` → boss kills,
+  `INSTANCE_EXIT` through a loading screen, the welcome popup, the Pictures row. `EQUIP` has never appeared in the
+  archive. The list is at the top of `docs/progress.md`.
 
 ## Coding rules
 
@@ -145,54 +137,62 @@ WoW: Forever → WoWwrapped AddOn (Lua) → SavedVariables (written on logout an
 **Companion:**
 - Never execute SavedVariables as Lua; use `luaparse.py`. Raw snapshot first, parse second. Atomic writes.
 - Merge by session id; never shrink or delete. `wrapped reprocess` rebuilds normalized data from raw after upgrades.
-- AI is optional: `wrapped summarize` must always write the prompt file. The Claude CLI runs with `--tools ""`,
-  no session persistence, an empty cwd and a writer's system prompt; never `--bare` (it bypasses the keychain login).
+- AI is optional: the Wrapped must always be complete from the facts, and its prompt file always written. The Claude
+  CLI runs with `--tools ""`, no session persistence, an empty cwd and a writer's system prompt; never `--bare` (it
+  bypasses the keychain login). Code calls it as `writer.run_claude` / `writer.claude_available` (through the
+  module), so the tests' patch in `conftest.py` holds and no test reaches the real CLI.
+- A new card is a few lines in `wrapped.cards` from a number `build_wrapped` already has (or a new one there); it
+  gets a caption from the facts and is skipped when empty. Card styles are `.slide` in `assets/wrapped.css`
+  (`.card` belongs to the index).
 - Printed WTF paths go through `Paths.redact()`.
 - Restart the watcher after changing companion code (`wrapped service install` again); a running process keeps old modules.
 - A new output after a night is a `Step` in `pipeline.STEPS`, never another line in `cli.py`. Anything that leaves the
   Mac runs unattended only when `wowwrapped.local.toml` opted in. A new setting is a dataclass field and a rule in
   `config.SECTIONS`. A new page is a body inside `pages.shell`.
 - Commands are declared with `@command(app)`: expected failures become one red line and exit 1 (`WOWWRAPPED_DEBUG=1`
-  for the traceback). Tests run with their own `WOWWRAPPED_HOME`, in UTC, with no notification, Claude CLI or X keys
-  (`tests/conftest.py`); never point a manual test at the checkout as home while its config has `auto = true`.
+  for the traceback). Tests run with their own `WOWWRAPPED_HOME`, in UTC, with no notification and no Claude CLI
+  (`tests/conftest.py`); never point a manual test at a home whose config has `auto = true`.
 
-**Journal writing:** only what was recorded. Names of people, quest-givers and places only from the evidence.
-Feelings only as reactions to recorded events. Pronouns from the recorded gender, else name/they. Rules in
-`prompts/journal.md`; voice in `prompts/voices/`.
+**Narration:** only what the cards say. Names of people, places and enemies exactly as recorded. Feelings only as
+reactions to recorded events. Pronouns from the recorded gender, else name/they. Never repeat or correct the
+player's notes. Rules in `prompts/wrapped.md`; voice in `prompts/voices/`.
 
 ## Dev loop
 
 ```
 edit addon/WoWwrapped/*.lua or companion/src/wowwrapped/*.py
 scripts/test                    # luac -p, simulated session, pytest (same as CI, macos-latest)
-scripts/test -k nights          # extra args go to pytest (single test: -k name, or tests/test_x.py::test_y)
+scripts/test -k wrapped         # extra args go to pytest (single test: -k name, or tests/test_x.py::test_y)
+cd companion && uv run wrapped make latest --no-ai --open     # the Wrapped from this checkout's archive
 /reload in WoW                  # AddOn is symlinked; new files need a restart of WoW only when added to the TOC
-wrapped service install          # restart the background watcher after companion changes
-/wrapped debug                   # paste output + any Lua errors back here
-wrapped share tonight            # copy the page + pictures into site/example, commit, push (asks first)
+wrapped service install         # restart the background watcher after companion changes
+/wrapped debug                  # paste output + any Lua errors back here
 ```
 
 `/console scriptErrors 1` shows Lua errors in game. `scripts/bootstrap` sets up uv and `wrapped` from scratch.
-CI (`.github/workflows/ci.yml`) runs `scripts/test`, builds the wheel and zips the AddOn (not for pushes that only
-touch `site/`); a `v*` tag makes a GitHub release with both. Record user-facing changes in `CHANGELOG.md`. A release
-bumps the version in four places that tests keep equal (`companion/pyproject.toml`, `wowwrapped/__init__.py`, both TOCs),
-gives the CHANGELOG a `## <version>` heading and updates the pinned `@v<version>` install lines (README, companion
-README, `docs/invite-prompt.md`, `site/index.html`); push, wait for green CI, then tag.
+Only one recorder at a time: disable the old Rambleon AddOn and stop its watcher (`ramble service uninstall`) before
+running this one. CI (`.github/workflows/ci.yml`) runs `scripts/test`, builds the wheel and zips the AddOn (not for
+pushes that only touch `site/`); a `v*` tag makes a GitHub release with both. Record user-facing changes in
+`CHANGELOG.md`. A release bumps the version in four places that tests keep equal (`companion/pyproject.toml`,
+`wowwrapped/__init__.py`, both TOCs), gives the CHANGELOG a `## <version>` heading and updates the pinned
+`@v<version>` install lines (README, companion README, `docs/invite-prompt.md`, `site/index.html`); push, wait for
+green CI, then tag.
 
 ## Command cheat sheet
 
-In game: `/wrapped` · `status` · `note <text>` · `mark` · `shots [on|off]` · `chapters` · `save` · `debug [on|off]` · `dump` · `help`.
+In game: `/wrapped` (or `/ww`) · `status` · `note <text>` · `mark` · `shots [on|off]` · `save` · `debug [on|off]` · `dump` · `help`.
 Keybindings under AddOns: Open Adventure Log, Mark Moment.
 
-Mac: `wrapped setup [--no-ai]` · `doctor [--fix] [--check-ai]` · `config` · `version` · `uninstall` · `install [--copy]` · `service install|uninstall|status` · `watch [--no-ai] [--no-auto] [--voice]`
-· `ingest` · `reprocess` · `status` · `sessions` · `nights` · `show latest` · `export tonight|YYYY-MM-DD|--all`
-· `finish [tonight|date] [--no-ai] [--voice] [--model] [--share]` · `summarize tonight [--voice] [--no-ai]` · `page tonight` · `publish` · `share [tonight|date|--all] [--yes] [--dry-run]` · `voices`
-· `post [tonight|date] [--style post|thread] [--link] [--no-picture] [--yes] [--dry-run] [--force]` · `x login|logout|status`
-· `catchup [tonight|date] [--copy]` · `guide [slug|latest] [--no-ai] [--voice] [--mode route|season|file.md] [--list] [--open]`.
+Mac: `wrapped setup [--no-ai]` · `doctor [--fix] [--check-ai]` · `config` · `version` · `uninstall` · `install [--copy]`
+· `service install|uninstall|status` · `watch [--no-ai] [--no-auto] [--voice] [--model]` · `ingest` · `reprocess`
+· `status` · `sessions` · `nights` · `show latest` · `export tonight|YYYY-MM-DD|--all`
+· `make [slug|latest] [--month YYYY-MM] [--year YYYY] [--since D] [--until D] [--no-ai] [--voice] [--model] [--open]`
+· `finish [tonight|date] [--no-ai] [--voice] [--model] [--share]` · `page tonight`
+· `share [tonight|date|--all] [--yes] [--dry-run]` · `voices`.
 
 ## Where this is going
 
-See `docs/roadmap.md`. Short version: it installs in one command and has a base to build on (0.4.0); next, make the
-chapter good enough to paste unedited, then memory over time (timeline, people, weekly recaps, map), each a new
-pipeline step. Free and open; the
-player's data never leaves the Mac unless they run the AI step, and even then only the prompt does.
+See `docs/roadmap.md`. Short version: 0.1.0 is the fork, the cuts and the first Wrapped. Next: verify the renamed
+AddOn in game, check the name against Blizzard's and Spotify's policies, publish the repo and a real example; then
+make the Wrapped something people pass around (picture cards, more than one character). Free and open; the player's
+data never leaves the Mac unless they share a page or run the AI step, and even then only the prompt does.

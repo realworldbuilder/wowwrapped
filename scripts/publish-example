@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
-# Refresh the public example journal (site/example/, served on GitHub Pages) from your local story pages.
-# This is now `wrapped share --all`: it asks before pushing, because pushing makes your journal public.
+# Refresh the public example (site/example/, served on GitHub Pages) from your local night pages and each
+# character's Wrapped. This is `wrapped share --all`: it replaces site/example and asks before pushing, because
+# pushing makes your nights public.
 exec wrapped share --all "$@"

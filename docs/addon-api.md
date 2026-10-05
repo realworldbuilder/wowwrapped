@@ -33,7 +33,7 @@ Researched 2026-09-21. Sources are listed at the end. Anything marked *verify in
 - `C_Map.GetPlayerMapPosition` returns nil inside instances. We record coordinates only when they are available.
 - `C_UI.Reload()` is hardware-event restricted on retail. One Forever report says it is fully protected there.
   END & SAVE calls it inside `pcall` from the popup button; if the UI is still up one second later the panel says
-  "Type /reload to save this chapter." *Verify in-game.*
+  "Type /reload to save." *Verify in-game.*
 
 ## Names and realms
 
@@ -50,8 +50,8 @@ Forever has surnames and no realms, and **the client changed how it reports them
 `character.displayName` with one rule, in `ns.CaptureCharacter` (AddOn) and `normalize.display_name` (companion):
 the second return of `UnitFullName` is a surname when it is non-empty, is not the realm in any spelling, and the
 name has no space already; the display name is the name plus that surname. Every shape above yields
-`"Rambleon Birdsong"`; mainline's `"Name", "Realm"` yields `"Name"`. `Chapters.lua` carries the GUID and the AddOn
-matches chapters by it (slug only as a fallback for old files). Group members are now first-name only.
+`"Rambleon Birdsong"`; mainline's `"Name", "Realm"` yields `"Name"`. A suspended session is resumed by GUID (by name
+only for sessions without one). Group members are now first-name only.
 
 ## Events WoWwrapped uses
 
@@ -71,21 +71,21 @@ matches chapters by it (slug only as a fallback for old files). Group members ar
 | `PLAYER_DEAD` / `PLAYER_UNGHOST` / `PLAYER_ALIVE` | `DEATH` / `REVIVED` | **build 70009 fires `PLAYER_DEAD` twice per death**, 1–4 s apart (every death from 09-24 to 10-01 was recorded twice; 09-22 and the second character were not). The AddOn ignores a repeat within 30 s and skips `UnitIsFeignDeath`; `normalize.drop_death_echoes` does the same for old recordings (`wrapped reprocess`). Revival only logged if `UnitIsDeadOrGhost` is false |
 | `CHAT_MSG_LOOT` | `LOOT` (uncommon+) | the item link in the line uses the 12.x **named colour** `|cnIQ2:|Hitem:…`, not `|cff1eff00`; the parser read only the hex form until 0.3.1, which is why no night before 10-02 has loot. `/wrapped debug` now shows `loot: N chat lines, M read, K kept` and the last line it could not read |
 | `GROUP_ROSTER_UPDATE` | `GROUP_JOIN` / `GROUP_LEAVE`, people table | roster diff, names guarded against secret values, time together accumulated on heartbeat |
-| `UPDATE_INSTANCE_INFO`, `PLAYER_ENTERING_WORLD` | `INSTANCE_ENTER` / `INSTANCE_EXIT {name}` | via `IsInInstance()` transitions. Until 0.4.0 every loading screen reset the remembered state, so the exit (which is a loading screen) was never recorded: 18 enters, 0 exits in the archive |
+| `UPDATE_INSTANCE_INFO`, `PLAYER_ENTERING_WORLD` | `INSTANCE_ENTER` / `INSTANCE_EXIT {name}` | via `IsInInstance()` transitions. Until Rambleon 0.4.0 every loading screen reset the remembered state, so the exit (which is a loading screen) was never recorded: 18 enters, 0 exits in the archive |
 | `ACHIEVEMENT_EARNED` | `ACHIEVEMENT` | pcall-registered; may not exist |
 | `SCREENSHOT_SUCCEEDED` | `SCREENSHOT {reason, auto, level, zone, subzone}` | no payload; the companion pairs the file by time. `reason` is `LEVEL_UP`, `MARK`, `ZONE_ENTER` when the AddOn took the picture (`auto = true`), else `MANUAL` |
 | `SCREENSHOT_FAILED` | — | clears the pending reason; `/wrapped debug` shows `last: failed` |
 
 Deliberately not recorded: chat content, anything from the combat log, protected or secret values.
 
-### Automatic screenshots (0.3.0; working on Forever, pictures paired nightly since 2026-09-23)
+### Automatic screenshots (Rambleon 0.3.0; working on Forever, pictures paired nightly since 2026-09-23)
 
 The AddOn calls the global `Screenshot()` (retail API; other addons use it for level-up shots) from `ns.TakeScreenshot`
 in `Session.lua`: one second after `PLAYER_LEVEL_UP` (the glow), 0.2 s after `/wrapped mark`, and one second after the
 `ZONE_ENTER` for the first visit to a new main zone tonight. Guards: `type(Screenshot) == "function"`, `pcall`, a 3 s
 rate limit, `WoWwrappedDB.settings.autoScreenshots` (`/wrapped shots on|off`). The reason is parked in `ns.pendingShot`
 and consumed by `SCREENSHOT_SUCCEEDED` (15 s TTL), so a manual screenshot in between would inherit it (rare, accepted).
-WoWwrapped's own panel and chapters reader are hidden for the picture and shown again after; the game's UI is not touched. Files land in `<WoW>/Screenshots/WoWScrnShot_MMDDYY_HHMMSS.<jpg|tga|png>` per the
+WoWwrapped's own panel is hidden for the picture and shown again after; the game's UI is not touched. Files land in `<WoW>/Screenshots/WoWScrnShot_MMDDYY_HHMMSS.<jpg|tga|png>` per the
 `screenshotFormat` CVar; the companion converts to JPEG for the web (sips) and can only *display* jpg/png.
 
 ## SavedVariables mechanics and the Forever beta bug
@@ -108,7 +108,7 @@ Consequences and our design:
    contains the current session. The Mac watcher snapshots every write and merges by session id; an archived session
    is never shrunk or deleted by a later, smaller file.
 3. We do **not** use the community workarounds (ForeverSVFix, WTFix) that load SV through the addon-file loader.
-4. A crash loses the in-memory session. END CHAPTER (or `/reload`) is what makes it permanent.
+4. A crash loses the in-memory session. `/wrapped save` (or `/reload`, or logging out) is what makes it permanent.
 
 ## Sources
 

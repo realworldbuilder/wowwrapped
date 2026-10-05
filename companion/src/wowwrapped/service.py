@@ -40,7 +40,7 @@ def install(extra_args: list[str] | None = None) -> str:
         "EnvironmentVariables": {"PATH": path_env, "HOME": str(Path.home())},
     }
     for key in ("WOWWRAPPED_HOME", "WOWWRAPPED_WOW_DIR", "WOWWRAPPED_ARCHIVE_DIR", "WOWWRAPPED_EXPORTS_DIR",
-                "WOWWRAPPED_VOICE", "WOWWRAPPED_MODEL", "WOWWRAPPED_GUIDE_MODE"):
+                "WOWWRAPPED_VOICE", "WOWWRAPPED_MODEL"):
         if os.environ.get(key):
             plist["EnvironmentVariables"][key] = os.environ[key]
     if is_loaded():

@@ -2,23 +2,59 @@
 
 ## To verify in game (the one list; newest release first)
 
-0.4.0, none of it seen in the real client yet. `/wrapped debug` lists any event the client refused to register.
+WoWwrapped 0.1.0: nothing under the new name has run in the real client yet. `/wrapped debug` lists any event the
+client refused to register.
 
-- **Chapters reader out of the pictures**: `/wrapped chapters`, then `/wrapped mark` → the reader vanishes for the
-  picture and comes back; it is not in the screenshot.
+- **The renamed AddOn loads**: the `WoWwrapped` folder is linked into `Interface/AddOns` (`wrapped install`, and the
+  old `Rambleon` link is gone or disabled so the two do not both record), it shows in the AddOn list, and the one
+  login line appears.
+- **Slash commands**: `/wrapped` and `/ww` both open the panel; `/wrapped help` lists the rest.
+- **Keybindings** under AddOns: Open Adventure Log, Mark Moment.
+- **SavedVariables**: after a logout, `WoWwrappedDB` is written to
+  `WTF/Account/<ACCOUNT>/70/Rambleon-Birdsong/SavedVariables/WoWwrapped.lua`, the watcher archives it, and the night
+  page and the Wrapped are written.
+- **Welcome**: `WoWwrappedDB` starts empty, so the login line says "welcome" and the first `/wrapped` shows the note
+  once, also for Rambleon Birdsong.
+
+Still open from Rambleon 0.4.0 (the code is unchanged apart from the name):
+
 - **Leaving a dungeon**: walk out of an instance → `/wrapped dump` shows "Left <name>". A `/reload` inside does not
   add a second "Entered <name>". (`IsInInstance()` must already be right at `PLAYER_ENTERING_WORLD`.)
 - **Abandon a quest** → "Abandoned "<title>"" about a second later; turning a quest in does not produce one.
   Watch for noise: abandons that are not yours (world quests, hidden quests) would show here.
 - **Set your hearthstone** at an innkeeper → "Made <inn> home". `HEARTHSTONE_BOUND` may not exist on Forever.
 - **Kill a dungeon boss** → "Defeated <name>". `ENCOUNTER_END` may not exist on Forever.
-- **Welcome**: not shown to Rambleon Birdsong (chapters exist). On a character with no chapters: the login line
-  says "welcome", and the first `/wrapped` shows the note once.
 - **Pictures row** on the panel: sits under "People Met", does not overlap "Recent Journey"; a click toggles it.
 - **`/wrapped debug on`** survives `/reload` (it will not survive a cold start while the SavedVariables bug lasts).
-- Still open from 10-02: one death in game → exactly one "Died in …" line. (Loot is confirmed: LOOT events in every
-  night since 10-02. `EQUIP` has never been seen in the archive: equip a green and check `/wrapped dump`.)
-- X: no post has gone out yet (the first live try was refused: the developer app was not attached to a project).
+- One death in game → exactly one "Died in …" line. `EQUIP` has never been seen in the archive: equip a green and
+  check `/wrapped dump`.
+
+## 2026-10-05 — WoWwrapped 0.1.0: forked from Rambleon 0.4.0
+
+Three commits turned Rambleon (a journal chapter per night) into WoWwrapped (a Wrapped per character).
+
+- **Cuts** (`cfbe83f`). Gone: posting to X (`xpost`), the route guide (`guide`), the AI-written chapter per night
+  (the journal prompt, `memory.py`, `summarize`), the in-game chapter reader (`Chapters.lua`, the chapters command,
+  `publish` as a command) and `catchup`. What is left records the play, archives it and writes a facts-only page per
+  night. `summarize.py` became `writer.py` (voices and the Claude CLI); `[journal]` became `[wrapped]` in the
+  local settings.
+- **Rename** (`401e0b2`). AddOn `addon/WoWwrapped/` (`WoWwrapped.toc`, `WoWwrapped_Camelot.toc`, `WoWwrappedDB`,
+  `/wrapped`, `/ww`); package `wowwrapped`, command `wrapped`; `wowwrapped.local.toml`, `WOWWRAPPED_*`, home
+  `~/WoWwrapped`, launchd label `com.wowwrapped.watch`. Version 0.1.0. The character Rambleon Birdsong keeps the
+  name. Raw snapshots recorded by Rambleon (`RambleonDB`) still reprocess.
+- **The Wrapped** (`d95dc37`). `wrapped.py` sums one character's nights into a page of cards (time, levels, quests,
+  top enemies, zones by time, companions, deaths, loot, dungeons, rhythm, the player's notes, pictures, a persona by
+  fixed rules) at `exports/html/wrapped-<slug>.html`. `wrapped make [slug|latest]` with `--month`, `--year` or
+  `--since`/`--until` gives a range its own page. The writer adds one line per card and a closing paragraph when the
+  Claude CLI is there (`prompts/wrapped.md`; sidecar `exports/wrapped/<slug>.json`); the page is complete without
+  it and the prompt file is always written. `pipeline.STEPS`: screenshots → markdown → wrapped → page → index →
+  share → notify. Night pages and the index link to the Wrapped; `wrapped share` takes it along. Pictures are also
+  looked for under the archive's current place, so a moved archive keeps them.
+- **Not done yet**: none of it has run in the real client (the list above); the GitHub repository does not exist;
+  `site/example` still holds Rambleon's pages. See `docs/roadmap.md`.
+
+**Everything below this line is Rambleon's history.** The find-and-replace of the rename turned its names into
+WoWwrapped's (`wrapped` for `ramble`), so some entries name commands and features that no longer exist.
 
 ## 2026-10-04 — 0.4.0: finished and extendable
 

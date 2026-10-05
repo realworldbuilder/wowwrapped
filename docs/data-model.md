@@ -10,7 +10,7 @@ Only strings, numbers, booleans and tables are ever stored (`ns.Clean` enforces 
 ```lua
 WoWwrappedDB = {
   schemaVersion = 1,
-  addonVersion = "0.4.0",
+  addonVersion = "0.1.0",
   settings = { autoScreenshots = true, debug = false, welcomed = false },   -- defaults in Session.lua; see below
   sessions = {                     -- array, oldest first; at most 10 non-active sessions are kept in WoW
     {
@@ -49,12 +49,12 @@ types in step; `docs/extending.md` shows how to add one.
 | `SESSION_START`, `RESUMED`, `SESSION_END {reason}` | |
 | `ZONE_ENTER` | `zone`, `subzone`, `mapID`, `x`, `y` (map percent, one decimal; absent in instances) |
 | `LEVEL_UP` | `level` |
-| `QUEST_ACCEPTED`, `QUEST_COMPLETED`, `QUEST_ABANDONED` | `questID`, `title` (+ `xp`, `money` on completion). Abandoned (0.4.0): the quest left the log without being turned in |
+| `QUEST_ACCEPTED`, `QUEST_COMPLETED`, `QUEST_ABANDONED` | `questID`, `title` (+ `xp`, `money` on completion). Abandoned (Rambleon 0.4.0): the quest left the log without being turned in |
 | `DEATH`, `REVIVED` | |
 | `GROUP_JOIN {name, class}`, `GROUP_LEAVE {name}` | |
-| `INSTANCE_ENTER {name, instanceType}`, `INSTANCE_EXIT {name}` | the exit was never recorded before 0.4.0 |
-| `BOSS_KILL {name, encounterID}` | a dungeon or raid encounter ended in a kill (`ENCOUNTER_END`; 0.4.0) |
-| `HEARTH_BOUND {name}` | an innkeeper made this place home (0.4.0) |
+| `INSTANCE_ENTER {name, instanceType}`, `INSTANCE_EXIT {name}` | the exit was never recorded before Rambleon 0.4.0 |
+| `BOSS_KILL {name, encounterID}` | a dungeon or raid encounter ended in a kill (`ENCOUNTER_END`; Rambleon 0.4.0) |
+| `HEARTH_BOUND {name}` | an innkeeper made this place home (Rambleon 0.4.0) |
 | `ACHIEVEMENT {id, name}` | |
 | `SCREENSHOT` | `reason` (`LEVEL_UP` \| `MARK` \| `ZONE_ENTER` \| `MANUAL`), `auto`, and for automatic shots the `level`/`zone`/`subzone` of the moment; the companion finds the file by time |
 | `NOTE {text}`, `MARK` | |
@@ -144,7 +144,6 @@ archive/
   sessions/normalized/history/  previous versions of any normalized file that was replaced
   screenshots/<session>/   copies of the night's screenshots (default; `--no-copy-screenshots` keeps references only)
   index.json               rebuilt after every change
-  posts/x.json             what `wrapped post` sent to X: night id → { v, postedAt, style, ids, texts, image, partial? }
   watch.pid                present while `wrapped watch` runs
 ```
 
@@ -152,34 +151,28 @@ archive/
 - A normalized session is replaced only by a copy with **at least as many events** that is not a state downgrade
   (`ended` beats `suspended`). Fewer events → rejected and logged. Never deleted, never shrunk.
 - A file whose `WoWwrappedDB` has no sessions (the beta bug, or a fresh character) touches nothing.
+- Raw snapshots recorded by Rambleon (`RambleonDB`) are still read: `wrapped reprocess` rebuilds their sessions.
 - Atomic writes everywhere (`tmp` + `os.replace`).
 
 ## 5. Exports (`exports/`)
 
 - `markdown/<date>-<slug>.md` — factual log (`wrapped export`).
-- `prompts/<date>-<slug>-prompt.md` — AI-neutral prompt with rules + evidence (`wrapped summarize`).
-- `markdown/<date>-<slug>-journal.md` and `social/<date>-<slug>-recap.txt` — when the Claude CLI wrote the chapter.
-- `social/<date>-<slug>-catchup.txt` — plain-text quest list for a friend (`wrapped catchup`).
-- `markdown/guide-<slug>.md`, `prompts/guide-<slug>-<mode>-prompt.md`, `html/guide-<slug>.html` — the route guide
-  (`wrapped guide`): every night of one character cut into zone stretches. `guide/<slug>-<mode>.json` is its sidecar:
-  `formatVersion, slug, displayName, title, mode, nights (ids the prose covers), chapters, prose, model, voice, createdAt`;
-  `markdown/guide-<slug>-<mode>-prose.md` the same prose as a file. A mode other than the configured default writes
-  `html/guide-<slug>-<mode>.html` beside the linked page.
-- `journal/<night id>.json` — the chapter as written: `formatVersion, sessionId, chapter, title, journal, recap, post, model, voice, createdAt`
-  (`post`: the one-line telling for a social feed, from the prompt's `---POST---` section; absent before 2026-10-01).
-  The story page, `Chapters.lua` and the prompts for later nights all read it: `memory.py` hands the writer the previous
-  chapter's text, the last three chapters' titles and a companion history built from the normalized nights. Deleting
-  a sidecar costs a title and the previous-chapter text, never a fact.
-
+- `html/wrapped-<slug>.html` — the Wrapped (`wrapped make`, and the `wrapped` pipeline step after every night): one
+  character's nights summed into cards. A range gets its own page: `html/wrapped-<slug>-<key>.html`, where `<key>` is
+  the month (`2026-09`), the year (`2026`) or `<since>_<until>` (`start` / `now` for an open end).
+- `prompts/wrapped-<slug>[-<key>]-prompt.md` — the prompt for the Wrapped's narration: rules, voice and the facts on
+  the cards. Always written, with or without the Claude CLI.
+- `wrapped/<slug>[-<key>].json` — the narration as written, the Wrapped's sidecar:
+  `formatVersion, slug, key, nightIds (the nights the narration covers), lines (card key → sentence), closing, model, voice, createdAt`.
+  The pipeline step asks the writer again only when the nights have changed. Deleting a sidecar costs the written
+  lines, never a fact.
 - `finished/<night id>.json` — the marker `pipeline.py` writes when every step has run over a night:
   `formatVersion, nightId, endedAt, events (how many the night held), finishedAt, steps (name → ok | skipped: … | failed: …)`.
   A night with no marker, or one that has grown since, is what a restarted watcher finishes (`wrapped status` lists
-  them). Nights finished before markers existed count when their journal sidecar, or else their story page, is newer
-  than the night's last minute.
-- `html/` — story pages, `index.html`, `guide-<slug>.html`, and an image folder per page.
+  them). Nights finished before markers existed count when their story page is newer than the night's last minute.
+- `html/` — story pages, `index.html`, `wrapped-<slug>.html`, and an image folder per page.
 
-Files with a `formatVersion` (and X ledger entries with `v`, `Chapters.lua` with `WoWwrappedChaptersMeta.format`) are
-at version 1; a file without the field is version 1 too.
+Files with a `formatVersion` are at version 1; a file without the field is version 1 too.
 
 Generated artifacts are downstream of the archive and can always be regenerated. Raw history is never edited.
 
@@ -188,8 +181,7 @@ Generated artifacts are downstream of the archive and can always be regenerated.
 `<home>` is `~/WoWwrapped` for a package install and the checkout when running from one (`WOWWRAPPED_HOME` overrides).
 
 - `wowwrapped.local.toml` — settings; every key optional. `wrapped config` prints what is in effect and warns about
-  keys it does not know. Sections: `[share] auto`; `[x] auto, style, link, picture, lowercase, delay, characters`;
-  `[guide] mode`; `[journal] voice, model`; `[characters."<slug>"]` (character fields to override, e.g. `gender`);
-  `[people."<Name>"] note`.
-- `prompts/voices/*.md`, `prompts/guides/*.md`, `prompts/journal.md`, `prompts/theme.css` — your own voices, guide
-  modes, chapter rules and page styles (`docs/extending.md`).
+  keys it does not know. Sections: `[share] auto`; `[wrapped] voice, model`; `[characters."<slug>"]` (character fields
+  to override, e.g. `gender`); `[people."<Name>"] note`.
+- `prompts/voices/*.md`, `prompts/wrapped.md`, `prompts/theme.css` — your own voices, Wrapped rules and page styles
+  (`docs/extending.md`).
